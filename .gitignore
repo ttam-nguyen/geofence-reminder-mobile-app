@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+android/build/
+ios/build/
+
+# Packager lock files
+packager-cache/
+
+# iOS
+*.xcworkspace/
+ Pods/
+ *.pbxuser
+ !default.pbxuser
+ *.mode1v3
+ !default.mode1v3
+ *.mode2v3
+ !default.mode2v3
+ *.perspectivev3
+ !default.perspectivev3
+
+# Android
+.gradle/
+local.properties
+*.keystore
+debug.keystore
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Metro
+.metro-health-check*
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# npm
+npm-debug.log*
+
+# Coverage
+coverage/
