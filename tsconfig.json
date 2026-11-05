@@ -30,5 +30,6 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "babel.config.js", "metro.config.js"]
+  "exclude": ["node_modules", "babel.config.js", "metro.config.js"],
+  "types": ["react", "react-native", "vitest"]
 }

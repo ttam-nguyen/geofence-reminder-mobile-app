@@ -12,6 +12,9 @@ export default defineConfig({
       exclude: ['node_modules/', 'src/__tests__/'],
     },
   },
+  esbuild: {
+    tsconfigRaw: '{ "compilerOptions": { "jsx": "react" } }',
+  },
   babel: {
     presets: [reactNative],
   },
