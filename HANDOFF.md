@@ -1,6 +1,6 @@
 # Handoff — GPS Reminder Mobile App
 
-## Current State: Plan 0 Complete (commit `15f8673`)
+## Current State: Plan 1 Complete (commit `55c50c3e`)
 
 ### What's Done
 - React Native 0.74.4 project scaffolded with TypeScript strict mode
@@ -13,9 +13,16 @@
   - react-native-sqlite-storage ^6.0.1
   - All other deps pinned for RN 0.74 compatibility
 - TypeScript compiles clean (npx tsc --noEmit)
-- 6/6 Vitest tests pass (package.json, tsconfig, eslint, prettier, vitest config, source structure)
+- 33/33 Vitest tests pass (setup + theme tokens + theme context + component files)
 - ESLint clean (no prettier plugin due to version conflict — noted for later fix)
 - .gitignore created with RN-specific ignores
+
+### Plan 1 Deliverables (commit `55c50c3e`)
+- Theme tokens: colors (light/dark), typography, spacing, radii, elevation, motion, blur
+- ThemeContext with ThemeProvider + useTheme() hook (auto dark mode detection)
+- Navigation shell: AppNavigator with Stack + Bottom Tabs, placeholder screens
+- 6 reusable components: Button, Input, Card, Badge, Divider, SafeAreaWrapper
+- All components consume theme tokens via useTheme() context
 
 ### Files in Project Root
 ```
@@ -43,57 +50,45 @@ src/__tests__/plan0-setup.test.ts  — 6 setup verification tests
 - Dependencies installed with --legacy-peer-deps due to react-native-maps requiring react >= 18.3.1 while RN 0.74 ships with react 18.2.0. This is acceptable for now but should be revisited if upgrading to RN 0.75+.
 - CocoaPods not installed (RN init failed on pod step). iOS builds will need `cd ios && bundle install && bundle exec pod install`.
 
-## Next Step: Plan 1 — Design System (Frosted Future)
+## Next Step: Plan 2 — Reminder Domain (Reminder entity, Zustand store, validation)
 
-### What Plan 1 Will Do
-1. Create design tokens (colors, typography, spacing, radii) for "Frosted Future" theme
-2. Create a theme provider (Zustand store) that exposes tokens globally
-3. Implement navigation shell with React Navigation (Stack + Bottom Tabs)
-4. Build reusable components: Button, Input, Card, Badge
-5. Write unit tests for all components and theme system
+### What Plan 2 Will Do
+1. Create Reminder entity with fields: id, title, description, geofence (location + radius), triggerType (enter/exit/both), isActive, createdAt, updatedAt
+2. Create Zustand store for reminders CRUD operations (add, update, delete, list)
+3. Implement reminder validation rules from spec (§5.1-5.2)
+4. Create reminder form UI (consumes Input, Button components from Plan 1)
+5. Write unit tests for entity, store, and validation logic
 6. Verify TypeScript compiles, lint passes, tests pass
 
-### Key Interfaces to Define (from Plan 1 spec)
+### Drift-Check Command (after Plan 2)
+```bash
+git diff 55c50c3e..HEAD -- src/ docs/superpowers/plans/02-reminder-domain.md
+```
+
+### Key Interfaces (from Plan 2 spec)
 ```typescript
-// Color tokens (light/dark mode)
-interface ColorTokens {
-  primary: string;
-  secondary: string;
-  background: string;
-  surface: string;
-  text: string;
-  textSecondary: string;
-  error: string;
-  success: string;
-  warning: string;
-  overlay: string;
+interface Reminder {
+  id: string;
+  title: string;
+  description?: string;
+  geofence: {
+    latitude: number;
+    longitude: number;
+    radius: number; // meters, 10-500m
+  };
+  triggerType: 'enter' | 'exit' | 'both';
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-// Typography tokens
-interface TypographyTokens {
-  fontFamily: string;
-  fontSize: Record<string, number>;
-  fontWeight: Record<string, string>;
-  lineHeight: Record<string, number>;
+interface ReminderStore {
+  reminders: Reminder[];
+  addReminder: (reminder: Omit<Reminder, 'id' | 'createdAt' | 'updatedAt'>) => string;
+  updateReminder: (id: string, updates: Partial<Reminder>) => void;
+  deleteReminder: (id: string) => void;
+  toggleActive: (id: string) => void;
 }
-
-// Spacing tokens (8px grid)
-type SpacingTokens = Record<string, number>;
-
-// Radius tokens
-type RadiusTokens = Record<string, number>;
-```
-
-### Commands to Verify (after Plan 1)
-```bash
-npx tsc --noEmit
-npx eslint 'src/**/*.ts' 'src/**/*.tsx'
-npx vitest run
-```
-
-### Drift-Check Command (after Plan 1)
-```bash
-git diff 15f8673..HEAD -- src/ docs/superpowers/plans/01-design-system.md
 ```
 
 ## Emergency Recovery Notes
