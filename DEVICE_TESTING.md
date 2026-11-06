@@ -5,23 +5,32 @@
 ### Prerequisites
 
 1. **Android Studio** installed with:
-   - Android SDK (API 29+ recommended)
+   - Android SDK (API 34+ recommended)
    - Platform Tools (`adb`)
+   - NDK (Side by side) 26.x
+   - Build-Tools 35.x
+   - Android Platform 35
 
 2. **Java 17** on your Mac:
    ```bash
    java -version
-   # Should show 17.x.x
+   # Should show 17.x.x (OpenJDK 17 from Homebrew)
+   ```
+   If you have Java 26, use: `export JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home`
+
+3. **Android SDK path** — create `android/local.properties`:
+   ```bash
+   echo "sdk.dir=$HOME/Library/Android/sdk" > android/local.properties
    ```
 
-3. **Your Android phone** connected via USB cable.
+4. **Your Android phone** connected via USB cable.
 
-4. **Enable Developer Options** on your phone:
+5. **Enable Developer Options** on your phone:
    - Go to Settings → About Phone
    - Tap "Build Number" 7 times
    - Go back to Settings → Developer Options
 
-5. **Enable USB Debugging** in Developer Options:
+6. **Enable USB Debugging** in Developer Options:
    - Turn ON "USB debugging"
    - (Optional but recommended) Turn ON "USB debugging (Security Settings)"
 
@@ -36,7 +45,10 @@ npm install --legacy-peer-deps
 # 2. Verify TypeScript compiles clean (should show zero errors)
 npx tsc --noEmit
 
-# 3. Build the Android debug APK
+# 3. Set Java 17 (required — Gradle 8.4 does not support Java 26)
+export JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home
+
+# 4. Build the Android debug APK
 cd android && ./gradlew assembleDebug && cd ..
 
 # The APK will be at: android/app/build/outputs/apk/debug/app-debug.apk
@@ -45,22 +57,15 @@ cd android && ./gradlew assembleDebug && cd ..
 ### Side-Load onto Phone
 
 ```bash
-# 4. Verify phone is connected
+# 5. Verify phone is connected
 adb devices
 # Should show: <device-id>    device
 
-# 5. Install the APK
+# 6. Install the APK
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
-# 6. Launch the app
+# 7. Launch the app
 adb shell am start -n com.gpsreminder/.MainActivity
-```
-
-### Alternative: Run Directly from RN
-
-```bash
-# This handles build + install + launch in one command
-npx react-native run-android --variant=debug
 ```
 
 ---
