@@ -1,0 +1,25 @@
+<!--
+  Geofence Reminder — Android Manifest Permissions
+
+  Add these lines to android/app/src/main/AndroidManifest.xml inside the <manifest> tag:
+
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+  <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+  And add this service inside the <application> tag for Android 10+ background location:
+
+  <service
+    android:name="com.google.android.gms.location.GeofenceService"
+    android:exported="false" />
+
+  Also add these to the <application> tag for background notifications:
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+  Note: For Android 10 (API 29+), ACCESS_BACKGROUND_LOCATION requires explicit user
+  approval at runtime via the permission request flow. The app must first obtain
+  ACCESS_FINE_LOCATION before requesting background access.
+-->
