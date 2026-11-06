@@ -47,3 +47,6 @@ npm-debug.log*
 
 # Coverage
 coverage/
+
+# Design kits (kept locally, not tracked)
+glass_layered_ui_concept_kit/
