@@ -391,7 +391,7 @@ Typography (Inter or Manrope primary, IBM Plex Mono for technical labels):
 
 Icons: 24×24 SVG, 1.7px stroke, rounded caps/joins, graphite stroke (`#27323A`), recolored through theme tokens. Red only for selected/primary states.
 
-Background: `assets/backgrounds/glass_frosted_geometric_background.png` as subtle screen backdrop (BoxFit.cover).
+Background: `assets/backgrounds/glass_frosted_geometric_background.png` as subtle screen backdrop.
 
 Dark mode palette: background `#11171C`, elevated graphite `#202A31`, glass fill `rgba(34,43,50,0.78)`, primary text `#F3F6F7`, secondary text `#B5C0C6`, border `rgba(255,255,255,0.14)`.
 
@@ -469,7 +469,7 @@ Build reusable components and theme tokens rather than styling screens independe
 
 Provide a practical light/dark appearance strategy. The Glass Layered design includes explicit dark mode tokens: background `#11171C`, glass fill `rgba(34,43,50,0.78)`, text `#F3F6F7`.
 
-The UI plan should include reviewable screen designs or wireframes before full screen implementation. Use `glass_layered_ui_concept_kit/screens/glass_layered_multi_screen_concept.png` as the visual reference. Do not treat a generated concept image as a production-ready layout specification.
+The UI plan should include reviewable screen designs or wireframes before full screen implementation. Use `assets/screens/glass_layered_multi_screen_concept.png` as the visual reference. Do not treat a generated concept image as a production-ready layout specification.
 
 Import design values from `glass_layered_ui_concept_kit/spec/design_tokens.json` into the React Native theme tokens (colors, radii, spacing, typography).
 

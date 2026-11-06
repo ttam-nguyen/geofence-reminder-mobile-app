@@ -18,7 +18,7 @@ Implement the **Glass Layered** design system with color tokens, typography scal
 | Styling | React Native StyleSheet (design tokens as JS constants) |
 | Theme | Zustand store + Context Provider |
 | Navigation | React Navigation 6.x (Stack + Bottom Tabs) |
-| Icons | Custom SVG components from `glass_layered_ui_concept_kit/assets/icons/` |
+| Icons | Custom SVG components from `assets/icons/` (16 icons, 24×24, 1.7px stroke) |
 
 ## Spec References
 - §7.1 Visual direction: **Glass Layered** (light, premium glassmorphism) — see `glass_layered_ui_concept_kit/spec/GLASS_LAYERED_TECHNICAL_DESIGN_SPEC.md`
@@ -26,7 +26,7 @@ Implement the **Glass Layered** design system with color tokens, typography scal
 - §7.3 UI design system: import tokens from `glass_layered_ui_concept_kit/spec/design_tokens.json`
 
 ## Global Constraints
-- Glass Layered aesthetic: frosted-glass surfaces, geometric background (`glass_frosted_geometric_background.png`), soft neutral backgrounds, signal-red accent `#F52232`
+- Glass Layered aesthetic: frosted-glass surfaces, geometric background (`assets/backgrounds/glass_frosted_geometric_background.png`), soft neutral backgrounds, signal-red accent `#F52232`
 - High contrast, accessible controls (WCAG AA minimum for body text)
 - Safe-area aware (notch, status bar, home indicator)
 - Dark mode: explicit dark tokens (background `#11171C`, glass fill `rgba(34,43,50,0.78)`)
