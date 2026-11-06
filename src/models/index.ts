@@ -10,4 +10,7 @@ export type { Reminder, createReminder, updateReminder, validateReminder, Valida
 export type { ReminderEvent, createReminderEvent, ReminderEventType, EventOutcome } from './ReminderEvent';
 
 export type { NotificationDeliveryRecord, createNotificationDeliveryRecord, DeliveryStatus } from './NotificationDeliveryRecord';
+
+export type { TargetLocation, createTargetLocation, validateTargetLocation, ValidationError as TargetLocationValidationError } from './TargetLocation';
+
 export { determineInitialStatus } from '../services/StateMachine';

@@ -1,6 +1,6 @@
 # Handoff — GPS Reminder Mobile App
 
-## Current State: Plan 4 Complete (commits `c832252a` → `eb9dbe17`)
+## Current State: Plan 5 Complete (commits `c832252a` → `9afc7461`)
 
 ### What's Done
 - React Native 0.74.4 project scaffolded with TypeScript strict mode
@@ -13,10 +13,10 @@
   - react-native-sqlite-storage ^6.0.1
   - All other deps pinned for RN 0.74 compatibility
 - TypeScript compiles clean (npx tsc --noEmit)
-- 148/148 Vitest tests pass (setup + theme tokens + theme context + component files + models + state machine + native module interfaces + orchestration)
+- 179/179 Vitest tests pass (setup + theme tokens + theme context + component files + models + state machine + native module interfaces + orchestration + location selection)
 - ESLint clean (no prettier plugin due to version conflict — noted for later fix)
 - .gitignore created with RN-specific ignores
-- Glass Layered assets moved to `assets/` (icons, background, concept board)
+- Glass Layered assets in `assets/` (icons, background, concept board)
 
 ### Plan 1 Deliverables (commit `55c50c3e`, tokens updated at `18801df4`)
 - Theme tokens: Glass Layered palette — Graphite `#171D22`, Frost `#E5EAED`, Signal red `#F52232`, Waiting amber `#D99A42`, Success green `#3C8D70`
@@ -48,6 +48,15 @@
 - **GeofenceEventProcessor** (src/native/GeofenceEventProcessor.ts): Converts native ENTER/EXIT events into state machine transitions, idempotency (TRIGGERED reminders ignore further events), valid transition checking
 - **Tests**: 148/148 pass (RegistrationManager capacity policy + lifecycle, event processing + idempotency)
 
+### Plan 5 Deliverables (commit `9afc7461`)
+- **TargetLocation** (src/models/TargetLocation.ts): Canonical model for all 3 location methods (GPS, map pin, search) with validation
+- **LocationService** (src/services/LocationService.ts): getCurrentPosition() + watchPosition() stubs for device
+- **SearchService** (src/services/SearchService.ts): Online-only place search with OfflineError when offline
+- **MapCacheService** (src/services/MapCacheService.ts): Tile caching — downloadArea, isTileCached, isAreaCached, getCachedAreas
+- **Hooks** (src/hooks/): useCurrentLocation (loading/error state), useMapPin (pin placement, radius clamping 10-500m)
+- **UI** (src/ui/): MapView (placeholder with offline indicator), CreateReminderLocationPicker (GPS/map/search tabs, radius presets, offline banner)
+- **Tests**: 179/179 pass (TargetLocation validation, GPS service, map cache CRUD, search online/offline)
+
 ### Files in Project Root
 ```
 package.json          — Dependencies (verified compatible versions)
@@ -74,28 +83,51 @@ src/__tests__/plan0-setup.test.ts  — 6 setup verification tests
 - Dependencies installed with --legacy-peer-deps due to react-native-maps requiring react >= 18.3.1 while RN 0.74 ships with react 18.2.0. This is acceptable for now but should be revisited if upgrading to RN 0.75+.
 - CocoaPods not installed (RN init failed on pod step). iOS builds will need `cd ios && bundle install && bundle exec pod install`.
 
-## Next Step: Plan 4 — Geofence Orchestration
+## Next Step: Plan 6 — Notifications & Recovery
 
-### What Plan 4 Will Do
-1. Create `RegistrationManager` service that maps reminder IDs ↔ native geofences, enforces capacity (iOS 20 / Android 500), prioritizes ARMED > WAITING_FOR_EXIT > DRAFT
-2. Create `GeofenceEventProcessor` that converts native ENTER/EXIT events into state machine transitions
-3. Create Zustand orchestration store for lifecycle management and event processing
-4. Implement idempotency (duplicate events → one notification, TRIGGERED reminders unregistered)
-5. Implement recovery (app restart re-registers eligible reminders from persisted state)
-6. Write unit tests for capacity policy, event processing, idempotency
-7. Verify TypeScript compiles, lint passes, tests pass
+### What Plan 6 Will Do
+1. Create notification scheduling service (local notifications with sound/vibration)
+2. Implement notification delivery tracking (record when delivered, handle failures)
+3. Handle app/device restart recovery — restore pending notifications
+4. Implement permission status monitoring + warning UI
+5. Write unit tests for notification scheduling, delivery tracking, recovery
+6. Verify TypeScript compiles, lint passes, tests pass
 
-### Drift-Check Command (after Plan 4)
+### Drift-Check Command (after Plan 6)
 ```bash
-git diff 4235e9ca..HEAD -- src/services/RegistrationManager.ts src/native/GeofenceEventProcessor.ts src/stores/orchestrationStore.ts
+git diff 9afc7461..HEAD -- src/services/NotificationService.ts src/ui/PermissionWarningScreen.tsx
 ```
 
 ### Key Integration Points
-- `ReminderStore` (Plan 2) ↔ `RegistrationManager` + `GeofenceEventProcessor` (Plan 4) ↔ Native module (Plan 3)
-- State machine transitions triggered by geofence events
-- Event log entries created for each state transition
+- `GeofenceEventProcessor` (Plan 4) → triggers notifications when reminder TRIGGERED
+- `ReminderRepository` (Plan 2) → stores notification delivery records
+- Native module (Plan 3) → `onGeofenceEvent` listener triggers notification scheduling
 
 ## Emergency Recovery Notes
-- If system crashes, resume from Plan 1 by reading `docs/superpowers/plans/01-design-system.md`
-- All library versions are pinned in `package.json` — run `npm install --legacy-peer-deps` to restore
-- Source files are committed at `15f8673` — use `git checkout 15f8673 -- src/` to restore source
+
+### System crash — resume procedure
+
+1. **Identify last completed plan.** Read `docs/superpowers/plans/README.md` for the plan index and current status. Cross-reference with the last committed commit hash.
+2. **Restore source files.** Run `git checkout <last-plan-commit> -- src/` to restore the working tree to that plan's state.
+3. **Restore dependencies.** Run `npm install --legacy-peer-deps`.
+4. **Verify baseline.** Run `npx tsc --noEmit` and `npx vitest run`. Confirm tests pass before continuing.
+5. **Read the plan document.** Open `docs/superpowers/plans/<plan-number>-<name>.md`. Identify which checklist items are already done (check those in git) vs. what remains.
+6. **Drift-check.** Run `git diff <plan-commit>..HEAD -- <affected-paths>` to verify nothing was left behind.
+7. **Continue implementation.** Follow the remaining checklist items in order.
+
+**Last completed plan:** Plan 5 (Location Selection & Maps) — commit `9afc7461`.
+**Remaining plans:** 6 (Notifications & Recovery), 7 (Core UI Flows), 8 (Advertising), 9 (Paid Themes), 10 (Release Hardening).
+
+### .prompts/ files — what they are and when to reference them
+
+| File | Purpose | When to use |
+|---|---|---|
+| `gps-reminder-revised-development-prompt.md` | Master product spec + engineering planning prompt. Defines all functional requirements (reminder creation, location selection, geofencing behavior, notification rules), non-functional constraints (offline-first, accessibility, monetization), product decisions (platforms, design system, ad strategy), and the mandatory planning workflow. | **Always.** Reference this when implementing any feature to verify spec coverage, check constraints, or resolve requirement questions. This is the single source of truth for what the app must do. |
+| `gps-location-reminder-product-specification.docx` | Original Word-format product specification (pre-revision). Contains the raw feature list and requirements before they were structured into the revised prompt. | Only when a requirement in the revised prompt seems ambiguous or incomplete — cross-check against the original spec for context. |
+
+**Rule:** Always read `gps-reminder-revised-development-prompt.md` fully before starting any new plan. Do not write application code until the plan has been reviewed against this spec and approved.
+
+### Known Issues/Notes
+- ESLint prettier rule disabled due to eslint-plugin-prettier + Prettier 3.x version conflict. Can be fixed by downgrading eslint-plugin-prettier or upgrading Prettier to 4.x when ready.
+- Dependencies installed with --legacy-peer-deps due to react-native-maps requiring react >= 18.3.1 while RN 0.74 ships with react 18.2.0. This is acceptable for now but should be revisited if upgrading to RN 0.75+.
+- CocoaPods not installed (RN init failed on pod step). iOS builds will need `cd ios && bundle install && bundle exec pod install`.
