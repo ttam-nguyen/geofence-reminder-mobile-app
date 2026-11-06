@@ -1,13 +1,15 @@
 /**
- * Frosted Future navigation type definitions.
- *
- * TypeScript route param types for React Navigation 6.x.
+ * Navigation type definitions for all screens.
  */
 
 export type RootStackParamList = {
-  Home: undefined;
-  Map: { geofenceId?: string } | undefined;
-  Settings: undefined;
+  Onboarding: undefined;
+  HomeTab: undefined;
+  MapTab: { geofenceId?: string } | undefined;
+  SettingsTab: undefined;
+  CreateReminder: { reminderId?: string } | undefined;
+  ReminderList: undefined;
+  ReminderDetail: { reminderId: string };
 };
 
 export type TabParamList = {
@@ -16,7 +18,6 @@ export type TabParamList = {
   Settings: undefined;
 };
 
-// Re-export for navigationTypes import in tests
 export const NavigationTypes = {
   RootStackParamList: {} as RootStackParamList,
   TabParamList: {} as TabParamList,
