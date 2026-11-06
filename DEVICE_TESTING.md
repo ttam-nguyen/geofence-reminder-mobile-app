@@ -54,17 +54,38 @@ cd android && ./gradlew assembleDebug && cd ..
 # The APK will be at: android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Side-Load onto Phone
+### Side-Load onto Phone (with Metro)
+
+Metro must be running to serve the JavaScript bundle:
 
 ```bash
-# 5. Verify phone is connected
+# Terminal 1 — Start Metro bundler:
+npx react-native start
+
+# Terminal 2 (separate) — Verify phone, install & launch:
 adb devices
 # Should show: <device-id>    device
-
-# 6. Install the APK
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.gpsreminder/.MainActivity
+```
 
-# 7. Launch the app
+### Side-Load onto Phone (bundled JS, no Metro)
+
+Bundle the JS into the APK so Metro is not needed:
+
+```bash
+# Bundle JS into APK assets (run once):
+npx react-native bundle --platform android --dev false \
+  --entry-file index.js \
+  --bundle-output android/app/src/main/assets/index.android.bundle \
+  --assets-dest android/app/src/main/res/
+
+# Build APK (JS is now embedded):
+cd android && export JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home
+./gradlew assembleDebug && cd ..
+
+# Install & launch (no Metro needed):
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.gpsreminder/.MainActivity
 ```
 
