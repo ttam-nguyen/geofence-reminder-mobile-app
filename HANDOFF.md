@@ -1,6 +1,6 @@
 # Handoff — GPS Reminder Mobile App
 
-## Current State: Plan 3 Complete (commit `c832252a`)
+## Current State: Plan 4 Complete (commits `c832252a` → `eb9dbe17`)
 
 ### What's Done
 - React Native 0.74.4 project scaffolded with TypeScript strict mode
@@ -13,9 +13,10 @@
   - react-native-sqlite-storage ^6.0.1
   - All other deps pinned for RN 0.74 compatibility
 - TypeScript compiles clean (npx tsc --noEmit)
-- 114/114 Vitest tests pass (setup + theme tokens + theme context + component files + models + state machine + native module interfaces)
+- 148/148 Vitest tests pass (setup + theme tokens + theme context + component files + models + state machine + native module interfaces + orchestration)
 - ESLint clean (no prettier plugin due to version conflict — noted for later fix)
 - .gitignore created with RN-specific ignores
+- Glass Layered assets moved to `assets/` (icons, background, concept board)
 
 ### Plan 1 Deliverables (commit `55c50c3e`, tokens updated at `18801df4`)
 - Theme tokens: Glass Layered palette — Graphite `#171D22`, Frost `#E5EAED`, Signal red `#F52232`, Waiting amber `#D99A42`, Success green `#3C8D70`
@@ -41,6 +42,11 @@
 - **iOS native** (native-modules/ios/): GeofenceManager.swift (Core Location), GeofencingModule.m (Objective-C bridge)
 - **Android native** (native-modules/android/): GeofenceManager.kt (GeofencingClient), GeofenceBroadcastReceiver.kt, GeofencingPackage.kt
 - **Manifest/Plist updates**: All required permissions for both platforms
+
+### Plan 4 Deliverables (commit `eb9dbe17`)
+- **RegistrationManager** (src/services/RegistrationManager.ts): Maps reminders ↔ native geofences, capacity policy (iOS 20 / Android 500), priority-based dropping (ARMED > WAITING_FOR_EXIT > DRAFT), restart recovery
+- **GeofenceEventProcessor** (src/native/GeofenceEventProcessor.ts): Converts native ENTER/EXIT events into state machine transitions, idempotency (TRIGGERED reminders ignore further events), valid transition checking
+- **Tests**: 148/148 pass (RegistrationManager capacity policy + lifecycle, event processing + idempotency)
 
 ### Files in Project Root
 ```
@@ -71,21 +77,21 @@ src/__tests__/plan0-setup.test.ts  — 6 setup verification tests
 ## Next Step: Plan 4 — Geofence Orchestration
 
 ### What Plan 4 Will Do
-1. Create `GeofenceOrchestrator` service that bridges reminder store ↔ native geofencing
-2. On reminder create: register with native module (if active)
-3. On geofence event: update reminder status via state machine + create event log entry
-4. Handle permission denial gracefully (show monitoring warning UI)
-5. Implement geofence prioritization when iOS 20-region limit hit
-6. Write unit tests for orchestrator logic
+1. Create `RegistrationManager` service that maps reminder IDs ↔ native geofences, enforces capacity (iOS 20 / Android 500), prioritizes ARMED > WAITING_FOR_EXIT > DRAFT
+2. Create `GeofenceEventProcessor` that converts native ENTER/EXIT events into state machine transitions
+3. Create Zustand orchestration store for lifecycle management and event processing
+4. Implement idempotency (duplicate events → one notification, TRIGGERED reminders unregistered)
+5. Implement recovery (app restart re-registers eligible reminders from persisted state)
+6. Write unit tests for capacity policy, event processing, idempotency
 7. Verify TypeScript compiles, lint passes, tests pass
 
 ### Drift-Check Command (after Plan 4)
 ```bash
-git diff c832252a..HEAD -- src/services/GeofenceOrchestrator.ts src/hooks/useGeofencing.ts
+git diff 4235e9ca..HEAD -- src/services/RegistrationManager.ts src/native/GeofenceEventProcessor.ts src/stores/orchestrationStore.ts
 ```
 
 ### Key Integration Points
-- `ReminderStore` (Plan 2) ↔ `GeofenceOrchestrator` (Plan 4) ↔ Native module (Plan 3)
+- `ReminderStore` (Plan 2) ↔ `RegistrationManager` + `GeofenceEventProcessor` (Plan 4) ↔ Native module (Plan 3)
 - State machine transitions triggered by geofence events
 - Event log entries created for each state transition
 
