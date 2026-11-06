@@ -1,20 +1,21 @@
 /**
- * Frosted Future motion (animation) tokens.
+ * Glass Layered motion (animation) tokens.
  *
- * Durations in milliseconds, matching Material Design Motion guidelines:
- * - Fast: 100ms (micro-interactions, icon taps)
- * - Normal: 200ms (most UI transitions)
- * - Slow: 350ms (screen-level transitions)
- * 
- * Easing curves matching RN's Animated API.
+ * Design source: glass_layered_ui_concept_kit/spec/GLASS_LAYERED_TECHNICAL_DESIGN_SPEC.md
+ *
+ * Radius changes: 180–260ms (gentle).
+ * Respect system reduced-motion settings.
  */
 
 export const motion = {
-  durationFast: 100,
-  durationNormal: 200,
-  durationSlow: 350,
+  durationFast: 100,    // Micro-interactions, icon taps
+  durationNormal: 200,  // Most UI transitions (radius changes ~180–260ms)
+  durationSlow: 350,    // Screen-level transitions
 
   // RN Animated easing presets
   easingEaseOut: 'easeOut' as const,
   easingEaseInOut: 'easeInOut' as const,
+
+  // Reduced-motion durations (when user prefers reduced motion)
+  durationReduced: 0,   // Instant — no animation
 } as const;

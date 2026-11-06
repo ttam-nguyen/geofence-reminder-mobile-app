@@ -1,8 +1,10 @@
 /**
- * Frosted Future elevation tokens.
+ * Glass Layered elevation tokens.
  *
- * Shadow styles for light and dark modes.
- * Uses Platform-specific shadow properties (iOS: shadow*, Android: elevation).
+ * Design source: glass_layered_ui_concept_kit/spec/GLASS_LAYERED_TECHNICAL_DESIGN_SPEC.md
+ *
+ * Glass surface shadow: rgba(23,29,34,0.10), blur 18, offset (0, 6).
+ * Adjust for contrast and background complexity.
  */
 
 import { Platform } from 'react-native';
@@ -12,10 +14,10 @@ const baseShadow: Record<string, unknown> = {
   ...(Platform.OS === 'android'
     ? { elevation: 2 }
     : {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
+        shadowColor: '#171D22', // Graphite
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.10,
+        shadowRadius: 18,
       }),
 };
 
@@ -23,10 +25,10 @@ const mediumShadow: Record<string, unknown> = {
   ...(Platform.OS === 'android'
     ? { elevation: 4 }
     : {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+        shadowColor: '#171D22',
+        shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.12,
-        shadowRadius: 8,
+        shadowRadius: 24,
       }),
 };
 
@@ -34,10 +36,10 @@ const highShadow: Record<string, unknown> = {
   ...(Platform.OS === 'android'
     ? { elevation: 8 }
     : {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.16,
-        shadowRadius: 12,
+        shadowColor: '#171D22',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.14,
+        shadowRadius: 30,
       }),
 };
 

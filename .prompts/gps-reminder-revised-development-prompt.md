@@ -102,7 +102,7 @@ The product's central promise is:
 | Monetization | Free app supported by ads |
 | Ad placements | Banner ads and ads within the reminders list |
 | Full-screen ads | Voluntary, user-initiated rewarded ads accessible from Settings; never forced |
-| Default visual design | Direction D, “Frosted Future / Glass Minimal,” from the first four-way sci-fi concept exploration |
+| Default visual design | Direction B — **Glass Layered** (frosted geometric background, signal-red accents, light glass cards, free dark mode) — see `glass_layered_ui_concept_kit/` |
 | Paid customization | Optional purchase of additional visual themes/reskins; default theme remains free |
 
 Do not silently change these decisions. If technical research shows a requirement cannot be met exactly, explain the platform limitation and propose the closest honest behavior.
@@ -332,23 +332,70 @@ Keep the alert-delivery architecture modular enough to add SMS in the final deve
 
 ## 7.1 Selected default visual direction
 
-Use **Direction D — Frosted Future / Glass Minimal** from the first four-way visual exploration.
+Use **Glass Layered** — a light, premium glassmorphism system.
 
-This is the selected default theme. Do not substitute the industrial, neon, or monochrome directions as the default.
+This is the selected default theme. Do not substitute other directions as the default.
 
-Visual characteristics:
+Visual characteristics (from `glass_layered_ui_concept_kit/spec/GLASS_LAYERED_TECHNICAL_DESIGN_SPEC.md`):
 
-- Frosted-glass and translucent layered surfaces.
-- Soft neutral backgrounds and subtle depth.
-- Monochrome foundation with restrained red signal accents.
-- Precise, readable typography.
-- Fine dividers and understated geometric/dot-matrix details.
-- Refined location rings and map overlays.
-- Calm, polished motion.
-- Generous spacing and clear hierarchy.
-- High contrast and accessible controls.
+- Frosted geometric reflections behind the interface (selected background direction B).
+- Moderate signal-red accents: `#F52232` (selected accent direction B).
+- Lightly frosted, readability-first cards: `rgba(255,255,255,0.72)` (selected transparency direction A).
+- Free dark mode: `rgba(34,43,50,0.72)` glass fill (selected dark-mode direction A).
+- Clear hierarchy, restrained blur, and subtle elevation. Do not make every surface translucent.
 
-The design may take broad inspiration from minimalist futuristic consumer hardware interfaces, but must create an original identity. Do not copy Nothing logos, proprietary Glyph assets, exact brand screens, or imply affiliation.
+Color palette (from `glass_layered_ui_concept_kit/spec/design_tokens.json`):
+
+| Token | Hex / value |
+|---|---|
+| Graphite | `#171D22` |
+| Text primary | `#27323A` |
+| Steel grey | `#68747C` |
+| Frost (bg base) | `#E5EAED` |
+| White | `#FFFFFF` |
+| Signal red (accent) | `#F52232` |
+| Waiting amber | `#D99A42` |
+| Success green | `#3C8D70` |
+
+Glass surface levels:
+
+- Level 0 — Background: opaque silver base + geometric reflections.
+- Level 1 — Standard glass card: `rgba(255,255,255,0.72)`, blur sigma 12, 1dp white border, soft shadow.
+- Level 2 — Floating control: 78–85% opacity, blur sigma 14–16.
+- Level 3 — Navigation glass: 78–85% fill, blur sigma 10–14.
+- Level 4 — Information glass: 65–72% fill, blur sigma 8–12.
+
+Geometry (Flutter dp → React Native px):
+
+- 4dp base spacing grid: 4, 8, 12, 16, 20, 24, 32, 40, 48.
+- Screen horizontal padding: 20 (16 on compact).
+- Section vertical gap: 24.
+- Card internal padding: 16.
+- Small radius: 10, Input: 14, Card: 20, Large card: 24.
+- Pill button radius: 28 (full capsule).
+- Modal radius: 28.
+- Standard control height: 48–52.
+- Minimum interactive target: 48×48.
+- Bottom navigation height: 72–80 plus safe area.
+
+Typography (Inter or Manrope primary, IBM Plex Mono for technical labels):
+
+| Style | Size | Weight | Line height |
+|---|---|---|---|
+| Screen title | 26 | 600 | 32 |
+| Section title | 19 | 600 | 24 |
+| Card title | 17 | 600 | 22 |
+| Body | 15 | 400 | 22 |
+| Secondary | 13 | 400 | 18 |
+| Micro label | 11 | 500 | 14 |
+
+Icons: 24×24 SVG, 1.7px stroke, rounded caps/joins, graphite stroke (`#27323A`), recolored through theme tokens. Red only for selected/primary states.
+
+Background: `assets/backgrounds/glass_frosted_geometric_background.png` as subtle screen backdrop (BoxFit.cover).
+
+Dark mode palette: background `#11171C`, elevated graphite `#202A31`, glass fill `rgba(34,43,50,0.78)`, primary text `#F3F6F7`, secondary text `#B5C0C6`, border `rgba(255,255,255,0.14)`.
+
+Accessibility: WCAG-informed contrast, 48dp minimum touch targets, text scaling support, reduced transparency mode, reduced motion mode, never use color as the only status cue.
 
 Do not turn the app into a cluttered sci-fi dashboard or game HUD. Usability and accessibility take priority over decoration.
 
@@ -406,23 +453,25 @@ Do not turn the app into a cluttered sci-fi dashboard or game HUD. Usability and
 
 Before implementing all screens, define and document:
 
-- Color tokens for the default theme.
-- Typography scale and font licensing.
-- Spacing scale.
-- Corner radii.
-- Elevation, blur, and translucency rules.
-- Icon style.
-- Button and input states.
-- Status colors and status iconography.
-- Animation/motion guidelines.
-- Responsive behavior and safe-area rules.
-- Accessibility contrast and text scaling.
+- **Color tokens**: from `glass_layered_ui_concept_kit/spec/design_tokens.json` — Graphite `#171D22`, Text primary `#27323A`, Steel grey `#68747C`, Frost `#E5EAED`, Signal red `#F52232`, Waiting amber `#D99A42`, Success green `#3C8D70`. Glass fill light `rgba(255,255,255,0.72)`, dark `rgba(34,43,50,0.72)`.
+- **Typography**: Inter or Manrope (primary), IBM Plex Mono (technical labels). 6 sizes: 26/19/17/15/13/11.
+- **Spacing**: 4dp base grid (4, 8, 12, 16, 20, 24, 32, 40, 48). Section gap: 24. Card padding: 16.
+- **Corner radii**: small 10, input 14, card 20, large card 24, pill/modal 28.
+- **Elevation & blur**: 5 glass surface levels (0–4), blur sigma 8–16, shadow `rgba(23,29,34,0.10)` at blur 18 offset (0,6).
+- **Icon style**: 24×24 SVG, 1.7px stroke, rounded caps/joins, graphite stroke with theme-token recoloring. 16 icons provided.
+- **Button and input states**: Pill button 52dp height, 28dp radius. Input 14dp radius. Standard control 48–52dp height.
+- **Status colors**: Signal red `#F52232` (primary/active), Waiting amber `#D99A42` (waiting-for-exit), Success green `#3C8D70`. Always communicate status with text/icon, not color alone.
+- **Animation/motion**: Gentle transitions 180–260ms for radius changes. Respect system reduced-motion settings.
+- **Responsive behavior**: 20dp screen padding (16 on compact). 48dp minimum touch targets. Safe area support.
+- **Accessibility**: WCAG contrast, text scaling, reduced transparency mode, VoiceOver/TalkBack testing.
 
 Build reusable components and theme tokens rather than styling screens independently.
 
-Provide a practical light/dark appearance strategy. The default Frosted Future design should remain recognizable in both appearances.
+Provide a practical light/dark appearance strategy. The Glass Layered design includes explicit dark mode tokens: background `#11171C`, glass fill `rgba(34,43,50,0.78)`, text `#F3F6F7`.
 
-The UI plan should include reviewable screen designs or wireframes before full screen implementation. Do not treat a generated concept image as a production-ready layout specification.
+The UI plan should include reviewable screen designs or wireframes before full screen implementation. Use `glass_layered_ui_concept_kit/screens/glass_layered_multi_screen_concept.png` as the visual reference. Do not treat a generated concept image as a production-ready layout specification.
+
+Import design values from `glass_layered_ui_concept_kit/spec/design_tokens.json` into the React Native theme tokens (colors, radii, spacing, typography).
 
 ---
 

@@ -23,7 +23,7 @@ export const Card: React.FC<CardProps> = ({ glass = false, children }) => {
     <View
       style={[
         styles.base,
-        { borderRadius: radii.lg },
+        { borderRadius: radii.card },
         glass ? styles.glass : { backgroundColor: colors.surface },
       ]}
     >

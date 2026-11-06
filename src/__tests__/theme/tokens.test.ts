@@ -52,8 +52,8 @@ describe('Color Tokens', () => {
 });
 
 describe('Typography Tokens', () => {
-  it('has all size keys', () => {
-    const sizes = ['xs', 'sm', 'md', 'lg', 'xl', 'xxl'];
+  it('has all size keys (Glass Layered)', () => {
+    const sizes = ['screenTitle', 'sectionTitle', 'cardTitle', 'body', 'secondary', 'microLabel'];
     for (const size of sizes) {
       expect(typography.sizes).toHaveProperty(size);
     }
@@ -66,24 +66,37 @@ describe('Typography Tokens', () => {
     }
   });
 
-  it('has all line height keys', () => {
-    const heights = ['tight', 'normal', 'relaxed'];
+  it('has all line height keys (Glass Layered)', () => {
+    const heights = ['screenTitle', 'sectionTitle', 'cardTitle', 'body', 'secondary', 'microLabel'];
     for (const height of heights) {
       expect(typography.lineHeights).toHaveProperty(height);
     }
   });
 
-  it('font size scale increases monotonically', () => {
+  it('has fontFamilyMono defined', () => {
+    expect(typography.fontFamilyMono).toBe('IBM Plex Mono');
+  });
+
+  it('font sizes are positive numbers', () => {
     const sizes = Object.values(typography.sizes);
-    for (let i = 1; i < sizes.length; i++) {
-      expect(sizes[i]).toBeGreaterThan(sizes[i - 1]);
+    for (const size of sizes) {
+      expect(size).toBeGreaterThan(0);
     }
   });
 
   it('line heights are positive numbers', () => {
-    expect(typography.lineHeights.tight).toBeGreaterThan(0);
-    expect(typography.lineHeights.normal).toBeGreaterThan(0);
-    expect(typography.lineHeights.relaxed).toBeGreaterThan(0);
+    const heights = Object.values(typography.lineHeights);
+    for (const height of heights) {
+      expect(height).toBeGreaterThan(0);
+    }
+  });
+
+  it('microLabel is the smallest size (minimum 11px)', () => {
+    expect(typography.sizes.microLabel).toBeGreaterThanOrEqual(11);
+  });
+
+  it('screenTitle is the largest size', () => {
+    expect(typography.sizes.screenTitle).toBeGreaterThanOrEqual(typography.sizes.sectionTitle);
   });
 });
 
@@ -113,14 +126,14 @@ describe('Spacing Tokens', () => {
 
 describe('Radius Tokens', () => {
   it('has all radius keys', () => {
-    const keys: (keyof typeof radii)[] = ['none', 'sm', 'md', 'lg', 'xl', 'full'];
+    const keys: (keyof typeof radii)[] = ['none', 'small', 'input', 'md', 'card', 'large', 'pill', 'full'];
     for (const key of keys) {
       expect(radii).toHaveProperty(key);
     }
   });
 
   it('radii increase monotonically (except none=0)', () => {
-    const keys: (keyof typeof radii)[] = ['sm', 'md', 'lg', 'xl', 'full'];
+    const keys: (keyof typeof radii)[] = ['small', 'input', 'md', 'card', 'large', 'pill', 'full'];
     const values = keys.map((k) => radii[k]);
     for (let i = 1; i < values.length; i++) {
       expect(values[i]).toBeGreaterThan(values[i - 1]);

@@ -1,47 +1,49 @@
 /**
- * Frosted Future color tokens — light and dark palettes.
+ * Glass Layered color tokens — light and dark palettes.
+ *
+ * Design source: glass_layered_ui_concept_kit/spec/design_tokens.json
  *
  * Design rules:
- * - Soft neutral backgrounds, white surfaces (light), dark neutrals (dark)
- * - Red accent (#E53E3E) for primary actions and triggered states
- * - High contrast text (WCAG AA minimum for body text)
- * - Glass effect via surfaceOverlay / glassBackground / glassBorder
+ * - Signal red (#F52232) used selectively — not as general background fill
+ * - Status always communicated with text/icon, not color alone
+ * - Glass surfaces: 72% opacity cards over geometric background
+ * - Dark mode uses explicit tokens (not inverted light)
  */
 
 export const lightColors: Record<string, string> = {
-  // Base neutrals
-  background: '#F5F7FA',
-  surface: '#FFFFFF',
-  surfaceOverlay: 'rgba(255, 255, 255, 0.7)', // frosted glass layer
-  primary: '#E53E3E',
-  primaryText: '#FFFFFF',
-  secondary: '#6B7280',
-  secondaryText: '#4B5563',
+  // Base neutrals — Glass Layered palette
+  background: '#E5EAED',    // Frost (main bg base)
+  surface: '#FFFFFF',       // White (surfaces)
+  surfaceOverlay: 'rgba(255, 255, 255, 0.72)', // Light glass fill (default card)
+  primary: '#F52232',       // Signal red (primary action, selected tab, pin)
+  primaryText: '#171D22',   // Graphite (high-contrast text on light)
+  secondary: '#68747C',     // Steel grey (secondary text, inactive icons)
+  secondaryText: '#27323A', // Text primary (on glass surfaces)
   divider: 'rgba(0, 0, 0, 0.08)',
-  error: '#E53E3E',
-  warning: '#F6AD55',
-  success: '#48BB78',
+  error: '#F52232',         // Signal red (error/triggered state)
+  warning: '#D99A42',       // Waiting amber (waiting-for-exit status)
+  success: '#3C8D70',       // Success green (completed/success state)
 
   // Overlay colors (glass effect)
-  glassBackground: 'rgba(255, 255, 255, 0.65)',
-  glassBorder: 'rgba(255, 255, 255, 0.3)',
+  glassBackground: 'rgba(255, 255, 255, 0.65)', // Floating control level
+  glassBorder: 'rgba(255, 255, 255, 0.58)',     // Glass edge highlight
 };
 
 export const darkColors: Record<string, string> = {
-  // Base neutrals — darker surfaces, adjusted contrast
-  background: '#1A1D23',
-  surface: '#252830',
-  surfaceOverlay: 'rgba(37, 40, 48, 0.7)',
-  primary: '#FC8181', // lighter red for dark mode contrast
-  primaryText: '#FFFFFF',
-  secondary: '#9CA3AF',
-  secondaryText: '#D1D5DB',
+  // Base neutrals — Glass Layered dark palette
+  background: '#11171C',       // Dark mode background
+  surface: '#202A31',          // Elevated graphite
+  surfaceOverlay: 'rgba(34, 43, 50, 0.78)', // Dark glass fill
+  primary: '#F52232',          // Signal red (same as light — accent color)
+  primaryText: '#F3F6F7',      // Light text on dark glass
+  secondary: '#B5C0C6',        // Secondary text (dark mode)
+  secondaryText: '#F3F6F7',    // Text primary (dark mode)
   divider: 'rgba(255, 255, 255, 0.1)',
-  error: '#FC8181',
-  warning: '#F6AD55',
-  success: '#68D391',
+  error: '#F52232',            // Signal red (error/triggered state)
+  warning: '#D99A42',          // Waiting amber (waiting-for-exit status)
+  success: '#3C8D70',          // Success green (completed/success state)
 
   // Overlay colors (glass effect)
-  glassBackground: 'rgba(37, 40, 48, 0.65)',
-  glassBorder: 'rgba(255, 255, 255, 0.1)',
+  glassBackground: 'rgba(34, 43, 50, 0.72)', // Dark glass fill
+  glassBorder: 'rgba(255, 255, 255, 0.14)',  // Dark mode glass border
 };

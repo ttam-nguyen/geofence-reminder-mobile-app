@@ -17,8 +17,13 @@
 - ESLint clean (no prettier plugin due to version conflict — noted for later fix)
 - .gitignore created with RN-specific ignores
 
-### Plan 1 Deliverables (commit `55c50c3e`)
-- Theme tokens: colors (light/dark), typography, spacing, radii, elevation, motion, blur
+### Plan 1 Deliverables (commit `55c50c3e`, tokens updated at `18801df4`)
+- Theme tokens: Glass Layered palette — Graphite `#171D22`, Frost `#E5EAED`, Signal red `#F52232`, Waiting amber `#D99A42`, Success green `#3C8D70`
+- Typography: 6 sizes (26/19/17/15/13/11), Inter primary, IBM Plex Mono for technical labels
+- Spacing: 4dp grid (4–48), includes 20 and 40
+- Radii: small 10, input 14, card 20, large 24, pill/modal 28
+- Elevation: graphite shadow (blur 18, offset 0,6)
+- Motion: includes durationReduced for reduced-motion preference
 - ThemeContext with ThemeProvider + useTheme() hook (auto dark mode detection)
 - Navigation shell: AppNavigator with Stack + Bottom Tabs, placeholder screens
 - 6 reusable components: Button, Input, Card, Badge, Divider, SafeAreaWrapper
