@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { searchPlaces, isOnline, OfflineError } from '@/services/SearchService';
+import { searchPlaces, isOnline } from '@/services/SearchService';
 
 describe('SearchService', () => {
   beforeEach(() => {

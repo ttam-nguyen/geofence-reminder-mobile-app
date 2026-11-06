@@ -27,8 +27,9 @@
 | 3 — Native Geofencing POC | ✅ Done | `c832252a` | TypeScript interfaces, React hook (useGeofencing), iOS native (Swift/Obj-C), Android native (Kotlin/BroadcastReceiver) |
 | 4 — Geofence Orchestration | ✅ Done | `eb9dbe17` | RegistrationManager (capacity policy: iOS 20 / Android 500), GeofenceEventProcessor (event→state transitions, idempotency) |
 | 5 — Location Selection & Maps | ✅ Done | `9afc7461` | TargetLocation model, LocationService (GPS stubs), SearchService (online search), MapCacheService (tile caching), useCurrentLocation + useMapPin hooks, MapView + CreateReminderLocationPicker UI |
+| 6 — Notifications & Recovery | ✅ Done | `v6-notifications` | NotificationModule (TS + iOS Swift + Android Kotlin), NotificationService, RecoveryService, notificationStore, PermissionStatusView, 219 tests |
 
-### Plans Remaining (6–10)
+### Plans Remaining (7–10)
 
 | Plan | Feature | Depends On | What it delivers |
 |---|---|---|---|
@@ -204,21 +205,8 @@ The package is in `package.json` but `node_modules` was never fully built (proje
 
 ## Plans 6–10 — What's Left to Build
 
-### Plan 6: Notifications & Recovery
-**Goal:** Local notification delivery (sound + vibration), permission status UI, app/device restart recovery.
-
-**Key files to create:**
-- `src/native/NotificationModule.ts` — TypeScript interface for native notification module
-- `ios/GPSReminder/NotificationModule.swift` — iOS: UNUserNotificationCenter, alert sound
-- `android/.../NotificationModule.k` — Android: NotificationManager, sound, vibration
-- `src/services/NotificationService.ts` — Schedule notifications, play sound/vibration
-- `src/services/RecoveryService.ts` — Re-register eligible reminders on app start and device boot
-- `src/stores/notificationStore.ts` — Zustand store for notification state
-- `src/ui/PermissionStatusView.tsx` — Display permission status + recovery guidance
-
-**Integration points:**
-- `GeofenceEventProcessor` (Plan 4) → triggers notifications when reminder TRIGGERED
-- `ReminderRepository` (Plan 2) → stores notification delivery records
+### Plan 7: Core UI Flows
+**Goal:** All 7 required screens from spec §7.2, wired with real navigation and real services (maps, GPS, search).
 
 ### Plan 7: Core UI Flows
 **Goal:** All 7 required screens from spec §7.2, wired with real navigation and real services (maps, GPS, search).
@@ -279,12 +267,15 @@ GeofenceEventProcessor.ts — ENTER/EXIT → state transitions, idempotency
 LocationService.ts       — getCurrentPosition() + watchPosition() stubs (mock data)
 SearchService.ts         — Online search with OfflineError when offline
 MapCacheService.ts       — Tile caching (download, check cached areas)
+NotificationService.ts   — Schedule local notifications, play sound/vibration
+RecoveryService.ts       — Re-register eligible reminders on app start / device boot
 ```
 
 ### src/native/
 ```
 GeofencingModule.ts      — TypeScript interface for native geofence operations + event listener
 GeofenceEventProcessor.ts — Processes native events into state transitions
+NotificationModule.ts    — TypeScript interface for native notification module (schedule, cancel, permissions)
 ```
 
 ### src/data/
@@ -296,6 +287,7 @@ ReminderRepositoryImpl.ts — Implements all repository ports (Reminder, Event, 
 ### src/stores/
 ```
 reminderStore.ts         — Zustand store: CRUD, state machine validation, initial status
+notificationStore.ts     — Zustand store: notification state, delivery records, permissions
 ```
 
 ### src/hooks/
@@ -309,6 +301,7 @@ useMapPin.ts             — Pin placement, radius clamping (10–500m)
 ```
 MapView.tsx              — Placeholder map (offline indicator, overlay count)
 CreateReminderLocationPicker.tsx — GPS/map/search tabs, radius presets, offline banner
+PermissionStatusView.tsx — Displays notification + location permission status with recovery guidance
 ```
 
 ### src/theme/
@@ -355,6 +348,10 @@ services/LocationService.test.ts — 13 tests (TargetLocation validation, GPS st
 services/MapCacheService.test.ts — 15 tests (tile caching CRUD)
 services/SearchService.test.ts — 3 tests (online search, offline error)
 stores/orchestrationStore.test.ts — 14 tests (event processing, idempotency)
+services/NotificationService.test.ts — 11 tests (schedule, cancel, permissions, sound/vibration)
+services/RecoveryService.test.ts — 10 tests (app start recovery, device boot, eligible reminders)
+stores/notificationStore.test.ts — 8 tests (permission state, delivery records, clearing)
+uI/PermissionStatusView.test.tsx — 11 tests (rendering, permission messages, recovery UI)
 ```
 
 ---
@@ -371,8 +368,8 @@ stores/orchestrationStore.test.ts — 14 tests (event processing, idempotency)
 6. **Drift-check.** Run `git diff <plan-commit>..HEAD -- <affected-paths>` to verify nothing was left behind.
 7. **Continue implementation.** Follow the remaining checklist items in order.
 
-**Last completed plan:** Plan 5 (Location Selection & Maps) — commit `3b9c9e3b`.
-**Remaining plans:** 6 (Notifications & Recovery), 7 (Core UI Flows), 8 (Advertising), 9 (Paid Themes), 10 (Release Hardening).
+**Last completed plan:** Plan 6 (Notifications & Recovery) — commit `v6-notifications`.
+**Remaining plans:** 7 (Core UI Flows), 8 (Advertising), 9 (Paid Themes), 10 (Release Hardening).
 
 ### .prompts/ files — what they are and when to reference them
 
