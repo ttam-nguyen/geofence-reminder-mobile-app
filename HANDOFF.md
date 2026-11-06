@@ -28,8 +28,9 @@
 | 4 — Geofence Orchestration | ✅ Done | `eb9dbe17` | RegistrationManager (capacity policy: iOS 20 / Android 500), GeofenceEventProcessor (event→state transitions, idempotency) |
 | 5 — Location Selection & Maps | ✅ Done | `9afc7461` | TargetLocation model, LocationService (GPS stubs), SearchService (online search), MapCacheService (tile caching), useCurrentLocation + useMapPin hooks, MapView + CreateReminderLocationPicker UI |
 | 6 — Notifications & Recovery | ✅ Done | `v6-notifications` | NotificationModule (TS + iOS Swift + Android Kotlin), NotificationService, RecoveryService, notificationStore, PermissionStatusView, 219 tests |
+| 7 — Core UI Flows | ✅ Done | `0d605db9` | 7 screens (Onboarding, Home, CreateReminder, ReminderList, ReminderDetail, Map, Settings), 4 helper components, full navigation shell, 219 tests |
 
-### Plans Remaining (7–10)
+### Plans Remaining (8–10)
 
 | Plan | Feature | Depends On | What it delivers |
 |---|---|---|---|
@@ -219,7 +220,7 @@ The package is in `package.json` but `node_modules` was never fully built (proje
 - `src/ui/ReminderDetailScreen.tsx` — Full content, map preview, state, edit/delete
 - `src/ui/MapScreen.tsx` — Full interactive map with react-native-maps
 - `src/ui/SettingsScreen.tsx` — Preferences, theme selection (placeholder), privacy info
-- `src/ui/components/` — ReminderListItem, OfflineBanner, PermissionWarning
+- `src/ui/components/` — ReminderListItem, ReminderMapView, OfflineBanner, PermissionWarning
 
 **Integration points:**
 - Consumes Zustand stores from Plans 2–6
@@ -368,8 +369,8 @@ uI/PermissionStatusView.test.tsx — 11 tests (rendering, permission messages, r
 6. **Drift-check.** Run `git diff <plan-commit>..HEAD -- <affected-paths>` to verify nothing was left behind.
 7. **Continue implementation.** Follow the remaining checklist items in order.
 
-**Last completed plan:** Plan 6 (Notifications & Recovery) — commit `v6-notifications`.
-**Remaining plans:** 7 (Core UI Flows), 8 (Advertising), 9 (Paid Themes), 10 (Release Hardening).
+**Last completed plan:** Plan 7 (Core UI Flows) — commit `0d605db9`.
+**Remaining plans:** 8 (Advertising), 9 (Paid Themes), 10 (Release Hardening).
 
 ### .prompts/ files — what they are and when to reference them
 
