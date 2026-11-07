@@ -68,7 +68,10 @@ export function ReminderListScreen({
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>Reminders</Text>
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: '#F52232' }]}
-          onPress={onNavigateCreate}
+          onPress={() => {
+            console.log('[ReminderList] FAB pressed: navigate to CreateReminder');
+            onNavigateCreate();
+          }}
           activeOpacity={0.7}
         >
           <Text style={[styles.fab, { color: '#FFFFFF', backgroundColor: 'transparent' }]}>
@@ -95,7 +98,10 @@ export function ReminderListScreen({
           <TouchableOpacity
             key={tab.key}
             style={[styles.filterTab, { borderBottomColor: filter === tab.key ? colors.primary : 'transparent' }]}
-            onPress={() => setFilter(tab.key)}
+            onPress={() => {
+              console.log('[ReminderList] Filter tab pressed:', tab.key);
+              setFilter(tab.key);
+            }}
             activeOpacity={0.7}
           >
             <Text style={[styles.filterTab, { color: filter === tab.key ? colors.primary : colors.secondary }]}>
@@ -115,7 +121,10 @@ export function ReminderListScreen({
               locationName={reminder.locationName}
               radiusMeters={reminder.radiusMeters}
               status={reminder.status}
-              onPress={() => onNavigateDetail(reminder.id)}
+              onPress={() => {
+                console.log('[ReminderList] Reminder tapped:', reminder.id, reminder.title);
+                onNavigateDetail(reminder.id);
+              }}
             />
           ))
         ) : (

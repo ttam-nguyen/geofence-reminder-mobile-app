@@ -46,7 +46,10 @@ export function ReminderDetailScreen({
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.errorTitle, { color: colors.primaryText }]}>Reminder not found</Text>
-        <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onNavigateBack} activeOpacity={0.7}>
+        <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
+          console.log('[ReminderDetail] Back to list pressed (reminder not found)');
+          onNavigateBack();
+        }} activeOpacity={0.7}>
           <Text style={[styles.backLink, { color: colors.primary }]}>← Back to list</Text>
         </TouchableOpacity>
       </View>
@@ -77,14 +80,23 @@ export function ReminderDetailScreen({
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onNavigateBack} activeOpacity={0.7}>
+        <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
+          console.log('[ReminderDetail] Back pressed');
+          onNavigateBack();
+        }} activeOpacity={0.7}>
           <Text style={[styles.backLink, { color: colors.primary }]}>← Back</Text>
         </TouchableOpacity>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onNavigateEdit} activeOpacity={0.7}>
+          <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
+            console.log('[ReminderDetail] Edit pressed, reminderId:', reminder.id);
+            onNavigateEdit();
+          }} activeOpacity={0.7}>
             <Text style={[styles.editLink, { color: colors.primary }]}>Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={{ paddingVertical: 4 }} onPress={handleDelete} activeOpacity={0.7}>
+          <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
+            console.log('[ReminderDetail] Delete pressed, reminderId:', reminder.id);
+            handleDelete();
+          }} activeOpacity={0.7}>
             <Text style={[styles.deleteLink, { color: colors.error }]}>Delete</Text>
           </TouchableOpacity>
         </View>

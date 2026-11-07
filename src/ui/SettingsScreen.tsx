@@ -28,7 +28,10 @@ export function SettingsScreen({ onNavigateNotifications, appVersion = '0.1.0' }
         {/* Notification preferences */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primaryText }]}>Notifications</Text>
-          <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onNavigateNotifications} activeOpacity={0.7}>
+          <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
+            console.log('[Settings] Notification Preferences pressed');
+            onNavigateNotifications();
+          }} activeOpacity={0.7}>
             <Text style={[styles.settingItem, { color: colors.primary }]}>Notification Preferences →</Text>
           </TouchableOpacity>
           <Text style={[styles.settingDesc, { color: colors.secondary }]}>

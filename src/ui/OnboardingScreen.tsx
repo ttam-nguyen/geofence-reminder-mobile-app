@@ -30,7 +30,9 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const isLastScreen = currentScreen === totalScreens;
 
   const handleNext = () => {
+    console.log('[Onboarding] Next pressed, currentScreen:', currentScreen, 'isLastScreen:', isLastScreen);
     if (isLastScreen) {
+      console.log('[Onboarding] Onboarding complete, navigating to main app');
       onComplete();
     } else {
       setCurrentScreen((prev) => (prev + 1) as ScreenIndex);
@@ -38,6 +40,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   };
 
   const handleSkip = () => {
+    console.log('[Onboarding] Skip pressed, navigating to main app');
     onComplete();
   };
 
@@ -96,7 +99,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
         {/* Navigation buttons */}
         <View style={styles.footer}>
           {currentScreen > 0 && (
-            <Button variant="ghost" onPress={() => setCurrentScreen((prev) => (prev - 1) as ScreenIndex)} style={styles.backButton}>
+            <Button variant="ghost" onPress={() => {
+              console.log('[Onboarding] Back pressed, currentScreen:', currentScreen);
+              setCurrentScreen((prev) => (prev - 1) as ScreenIndex);
+            }} style={styles.backButton}>
               Back
             </Button>
           )}

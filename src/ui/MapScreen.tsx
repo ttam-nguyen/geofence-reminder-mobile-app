@@ -32,7 +32,10 @@ export function MapScreen({ onNavigateCreate, reminders }: MapScreenProps) {
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>Map</Text>
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: '#F52232' }]}
-          onPress={onNavigateCreate}
+          onPress={() => {
+            console.log('[Map] + Add pressed: navigate to CreateReminder');
+            onNavigateCreate();
+          }}
           activeOpacity={0.7}
         >
           <Text style={[styles.fab, { color: '#FFFFFF', backgroundColor: 'transparent' }]}>

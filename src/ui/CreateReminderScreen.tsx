@@ -135,7 +135,10 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onCancel} activeOpacity={0.7}>
+        <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
+          console.log('[CreateReminder] Back pressed');
+          onCancel();
+        }} activeOpacity={0.7}>
           <Text style={[styles.backButton, { color: colors.primary }]}>← Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>
@@ -176,7 +179,10 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
               <TouchableOpacity
                 key={tab}
                 style={[styles.tabLabel, { borderBottomColor: selectedTab === tab ? colors.primary : 'transparent' }]}
-                onPress={() => setSelectedTab(tab)}
+                onPress={() => {
+                  console.log('[CreateReminder] Tab selected:', tab);
+                  setSelectedTab(tab);
+                }}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.tabLabel, { color: selectedTab === tab ? colors.primary : colors.secondary }]}>
@@ -196,7 +202,10 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
                 {gpsLoading ? (
                   <Text style={[styles.loading, { color: colors.secondary }]}>Getting location...</Text>
                 ) : (
-                  <Button variant="secondary" onPress={handleGPSSelect} disabled={gpsLoading}>
+                  <Button variant="secondary" onPress={() => {
+                    console.log('[CreateReminder] Use Current Location pressed');
+                    handleGPSSelect();
+                  }} disabled={gpsLoading}>
                     Use Current Location
                   </Button>
                 )}
@@ -208,7 +217,10 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
                 <Text style={[styles.description, { color: colors.secondary }]}>
                   Place a pin on the map to select your target location.
                 </Text>
-                <Button variant="secondary" onPress={handleMapSelect}>
+                <Button variant="secondary" onPress={() => {
+                  console.log('[CreateReminder] Open Map pressed');
+                  handleMapSelect();
+                }}>
                   Open Map
                 </Button>
               </View>
@@ -219,7 +231,10 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
                 <Text style={[styles.description, { color: colors.secondary }]}>
                   Search for addresses, businesses, or places.
                 </Text>
-                <Button variant="secondary" onPress={handleSearchSelect}>
+                <Button variant="secondary" onPress={() => {
+                  console.log('[CreateReminder] Search Places pressed');
+                  handleSearchSelect();
+                }}>
                   Search Places
                 </Button>
               </View>
@@ -249,7 +264,10 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
                 key={preset}
                 variant={radiusMeters === preset ? 'primary' : 'secondary'}
                 size="sm"
-                onPress={() => handleRadiusPreset(preset)}
+                onPress={() => {
+                  console.log('[CreateReminder] Radius preset selected:', preset);
+                  handleRadiusPreset(preset);
+                }}
               >
                 {preset >= 1000 ? `${preset / 1000}km` : `${preset}m`}
               </Button>
@@ -262,7 +280,10 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
           <Text style={[styles.sectionLabel, { color: colors.primaryText }]}>Notifications</Text>
           <View style={styles.prefRow}>
             <Text style={[styles.prefLabel, { color: colors.secondaryText }]}>Sound</Text>
-            <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => setNotificationSoundEnabled(!notificationSoundEnabled)} activeOpacity={0.7}>
+            <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
+              console.log('[CreateReminder] Sound toggle pressed, new value:', !notificationSoundEnabled);
+              setNotificationSoundEnabled(!notificationSoundEnabled);
+            }} activeOpacity={0.7}>
               <Text style={[styles.toggle, { color: notificationSoundEnabled ? colors.primary : colors.secondary }]}>
                 {notificationSoundEnabled ? 'ON' : 'OFF'}
               </Text>
@@ -270,7 +291,10 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
           </View>
           <View style={styles.prefRow}>
             <Text style={[styles.prefLabel, { color: colors.secondaryText }]}>Vibration</Text>
-            <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => setNotificationVibrationEnabled(!notificationVibrationEnabled)} activeOpacity={0.7}>
+            <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
+              console.log('[CreateReminder] Vibration toggle pressed, new value:', !notificationVibrationEnabled);
+              setNotificationVibrationEnabled(!notificationVibrationEnabled);
+            }} activeOpacity={0.7}>
               <Text style={[styles.toggle, { color: notificationVibrationEnabled ? colors.primary : colors.secondary }]}>
                 {notificationVibrationEnabled ? 'ON' : 'OFF'}
               </Text>
@@ -293,7 +317,10 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
           size="lg"
           loading={loading}
           disabled={!isValid || loading}
-          onPress={handleSave}
+          onPress={() => {
+            console.log('[CreateReminder] Save pressed, isValid:', isValid);
+            handleSave();
+          }}
           style={styles.saveButton}
         >
           Save Reminder

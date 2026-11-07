@@ -55,7 +55,10 @@ export function ReminderListItem({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        console.log('[ReminderListItem] Tapped:', title, 'status:', status, 'radius:', radiusMeters);
+        onPress?.();
+      }}
       style={[styles.container, { backgroundColor: colors.surface }, isActive && styles.activeItem, style]}
       accessible={true}
       accessibilityRole="button"

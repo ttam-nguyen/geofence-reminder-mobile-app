@@ -48,7 +48,10 @@ export function HomeScreen({
             {/* Add Reminder FAB (as a styled button) */}
             <TouchableOpacity
               style={[styles.fab, { backgroundColor: '#F52232' }]}
-              onPress={onNavigateCreate}
+              onPress={() => {
+                console.log('[Home] FAB pressed: navigate to CreateReminder');
+                onNavigateCreate();
+              }}
               activeOpacity={0.7}
             >
               <Text style={[styles.fab, { color: '#FFFFFF', backgroundColor: 'transparent' }]}>
@@ -76,7 +79,10 @@ export function HomeScreen({
             {activeReminders.length > 5 && (
               <TouchableOpacity
                 style={{ paddingVertical: 4 }}
-                onPress={onNavigateList}
+                onPress={() => {
+                  console.log('[Home] See all pressed: navigate to ReminderList, active count:', activeReminders.length);
+                  onNavigateList();
+                }}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.seeAll, { textAlign: 'center' }]}>See all {activeReminders.length} reminders →</Text>
@@ -91,7 +97,10 @@ export function HomeScreen({
             </Text>
             <TouchableOpacity
               style={{ paddingVertical: 4 }}
-              onPress={onNavigateCreate}
+              onPress={() => {
+                console.log('[Home] Empty state action pressed: navigate to CreateReminder');
+                onNavigateCreate();
+              }}
               activeOpacity={0.7}
             >
               <Text style={[styles.emptyAction, { color: colors.primary }]}>Create your first reminder →</Text>
