@@ -23,18 +23,27 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 /** Container components that bridge navigation props to screen props. */
 
-const HomeScreenContainer = (_props: any) => (
-  <HomeScreen
-    onNavigateCreate={() => {}}
-    onNavigateList={() => {}}
-    activeReminders={[]}
-    totalCount={0}
-  />
-);
+const HomeScreenContainer = (_props: any) => {
+  const navigation = useNavigation<any>();
+  return (
+    <HomeScreen
+      onNavigateCreate={() => navigation.navigate('CreateReminder' as never)}
+      onNavigateList={() => navigation.navigate('ReminderList' as never)}
+      activeReminders={[]}
+      totalCount={0}
+    />
+  );
+};
 
-const MapScreenContainer = (_props: any) => (
-  <MapScreen onNavigateCreate={() => {}} reminders={[]} />
-);
+const MapScreenContainer = (_props: any) => {
+  const navigation = useNavigation<any>();
+  return (
+    <MapScreen
+      onNavigateCreate={() => navigation.navigate('CreateReminder' as never)}
+      reminders={[]}
+    />
+  );
+};
 
 const SettingsScreenContainer = (_props: any) => (
   <SettingsScreen onNavigateNotifications={() => {}} />
@@ -60,17 +69,39 @@ const OnboardingContainer = (_props: any) => {
   return <OnboardingScreen onComplete={handleComplete} />;
 };
 
-const CreateReminderContainer = (_props: any) => (
-  <CreateReminderScreen reminderId={null} onSaved={() => {}} onCancel={() => {}} />
-);
+const CreateReminderContainer = (_props: any) => {
+  const navigation = useNavigation<any>();
+  return (
+    <CreateReminderScreen
+      reminderId={null}
+      onSaved={() => navigation.goBack()}
+      onCancel={() => navigation.goBack()}
+    />
+  );
+};
 
-const ReminderListContainer = (_props: any) => (
-  <ReminderListScreen onNavigateCreate={() => {}} onNavigateDetail={() => {}} reminders={[]} />
-);
+const ReminderListContainer = (_props: any) => {
+  const navigation = useNavigation<any>();
+  return (
+    <ReminderListScreen
+      onNavigateCreate={() => navigation.navigate('CreateReminder' as never)}
+      onNavigateDetail={(id: string) => navigation.navigate('ReminderDetail' as never, { reminderId: id })}
+      reminders={[]}
+    />
+  );
+};
 
-const ReminderDetailContainer = (_props: any) => (
-  <ReminderDetailScreen onNavigateEdit={() => {}} onNavigateBack={() => {}} onDelete={() => {}} reminder={null} />
-);
+const ReminderDetailContainer = (_props: any) => {
+  const navigation = useNavigation<any>();
+  return (
+    <ReminderDetailScreen
+      onNavigateEdit={() => navigation.navigate('CreateReminder' as never)}
+      onNavigateBack={() => navigation.goBack()}
+      onDelete={() => {}}
+      reminder={null}
+    />
+  );
+};
 
 /** Bottom tab navigator with Home, Map, Settings tabs. */
 const TabNavigator = () => {
