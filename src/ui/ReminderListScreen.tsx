@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { ReminderListItem } from './components/ReminderListItem';
 import type { ReminderStatus } from '../models/ReminderStatus';
@@ -66,15 +66,15 @@ export function ReminderListScreen({
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>Reminders</Text>
-        <Text
-          style={[styles.fab, { color: '#FFFFFF' }]}
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: '#F52232' }]}
           onPress={onNavigateCreate}
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel="Add new reminder"
+          activeOpacity={0.7}
         >
-          + Add
-        </Text>
+          <Text style={[styles.fab, { color: '#FFFFFF', backgroundColor: 'transparent' }]}>
+            + Add
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Search bar */}
@@ -92,21 +92,16 @@ export function ReminderListScreen({
       {/* Filter tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {filterTabs.map((tab) => (
-          <Text
+          <TouchableOpacity
             key={tab.key}
-            style={[
-              styles.filterTab,
-              {
-                color: filter === tab.key ? colors.primary : colors.secondary,
-                borderBottomColor: filter === tab.key ? colors.primary : 'transparent',
-              },
-            ]}
+            style={[styles.filterTab, { borderBottomColor: filter === tab.key ? colors.primary : 'transparent' }]}
             onPress={() => setFilter(tab.key)}
-            accessible={true}
-            accessibilityRole="button"
+            activeOpacity={0.7}
           >
-            {tab.label}
-          </Text>
+            <Text style={[styles.filterTab, { color: filter === tab.key ? colors.primary : colors.secondary }]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
         ))}
       </ScrollView>
 

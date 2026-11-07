@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { MapView } from './MapView';
 import type { ReminderStatus } from '../models/ReminderStatus';
@@ -30,15 +30,15 @@ export function MapScreen({ onNavigateCreate, reminders }: MapScreenProps) {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>Map</Text>
-        <Text
-          style={[styles.fab, { color: '#FFFFFF' }]}
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: '#F52232' }]}
           onPress={onNavigateCreate}
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel="Add reminder from map"
+          activeOpacity={0.7}
         >
-          + Add
-        </Text>
+          <Text style={[styles.fab, { color: '#FFFFFF', backgroundColor: 'transparent' }]}>
+            + Add
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Map */}

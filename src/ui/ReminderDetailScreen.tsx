@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { ReminderListItem } from './components/ReminderListItem';
 import { ReminderMapView } from './components/ReminderMapView';
@@ -46,9 +46,9 @@ export function ReminderDetailScreen({
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.errorTitle, { color: colors.primaryText }]}>Reminder not found</Text>
-        <Text style={[styles.backLink, { color: colors.primary }]} onPress={onNavigateBack}>
-          ← Back to list
-        </Text>
+        <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onNavigateBack} activeOpacity={0.7}>
+          <Text style={[styles.backLink, { color: colors.primary }]}>← Back to list</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -77,31 +77,16 @@ export function ReminderDetailScreen({
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <Text
-          style={[styles.backLink, { color: colors.primary }]}
-          onPress={onNavigateBack}
-          accessible={true}
-          accessibilityRole="button"
-        >
-          ← Back
-        </Text>
+        <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onNavigateBack} activeOpacity={0.7}>
+          <Text style={[styles.backLink, { color: colors.primary }]}>← Back</Text>
+        </TouchableOpacity>
         <View style={styles.headerActions}>
-          <Text
-            style={[styles.editLink, { color: colors.primary }]}
-            onPress={onNavigateEdit}
-            accessible={true}
-            accessibilityRole="button"
-          >
-            Edit
-          </Text>
-          <Text
-            style={[styles.deleteLink, { color: colors.error }]}
-            onPress={handleDelete}
-            accessible={true}
-            accessibilityRole="button"
-          >
-            Delete
-          </Text>
+          <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onNavigateEdit} activeOpacity={0.7}>
+            <Text style={[styles.editLink, { color: colors.primary }]}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ paddingVertical: 4 }} onPress={handleDelete} activeOpacity={0.7}>
+            <Text style={[styles.deleteLink, { color: colors.error }]}>Delete</Text>
+          </TouchableOpacity>
         </View>
       </View>
 

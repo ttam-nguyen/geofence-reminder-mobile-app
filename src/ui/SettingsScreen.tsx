@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface SettingsScreenProps {
@@ -28,14 +28,9 @@ export function SettingsScreen({ onNavigateNotifications, appVersion = '0.1.0' }
         {/* Notification preferences */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primaryText }]}>Notifications</Text>
-          <Text
-            style={[styles.settingItem, { color: colors.primary }]}
-            onPress={onNavigateNotifications}
-            accessible={true}
-            accessibilityRole="button"
-          >
-            Notification Preferences →
-          </Text>
+          <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onNavigateNotifications} activeOpacity={0.7}>
+            <Text style={[styles.settingItem, { color: colors.primary }]}>Notification Preferences →</Text>
+          </TouchableOpacity>
           <Text style={[styles.settingDesc, { color: colors.secondary }]}>
             Configure alert sound and vibration settings.
           </Text>

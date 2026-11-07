@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -135,15 +135,9 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <Text
-          style={[styles.backButton, { color: colors.primary }]}
-          onPress={onCancel}
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          ← Back
-        </Text>
+        <TouchableOpacity style={{ paddingVertical: 4 }} onPress={onCancel} activeOpacity={0.7}>
+          <Text style={[styles.backButton, { color: colors.primary }]}>← Back</Text>
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>
           {reminderId ? 'Edit Reminder' : 'New Reminder'}
         </Text>
@@ -179,19 +173,16 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
           {/* Tab selector */}
           <View style={styles.tabBar}>
             {(['gps', 'map', 'search'] as LocationTab[]).map((tab) => (
-              <Text
+              <TouchableOpacity
                 key={tab}
-                style={[
-                  styles.tabLabel,
-                  { color: selectedTab === tab ? colors.primary : colors.secondary },
-                ]}
+                style={[styles.tabLabel, { borderBottomColor: selectedTab === tab ? colors.primary : 'transparent' }]}
                 onPress={() => setSelectedTab(tab)}
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel={`${tab} location`}
+                activeOpacity={0.7}
               >
-                {tab === 'gps' ? 'Current GPS' : tab === 'map' ? 'Map Pin' : 'Search'}
-              </Text>
+                <Text style={[styles.tabLabel, { color: selectedTab === tab ? colors.primary : colors.secondary }]}>
+                  {tab === 'gps' ? 'Current GPS' : tab === 'map' ? 'Map Pin' : 'Search'}
+                </Text>
+              </TouchableOpacity>
             ))}
           </View>
 
@@ -271,27 +262,19 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
           <Text style={[styles.sectionLabel, { color: colors.primaryText }]}>Notifications</Text>
           <View style={styles.prefRow}>
             <Text style={[styles.prefLabel, { color: colors.secondaryText }]}>Sound</Text>
-            <Text
-              style={[styles.toggle, { color: notificationSoundEnabled ? colors.primary : colors.secondary }]}
-              onPress={() => setNotificationSoundEnabled(!notificationSoundEnabled)}
-              accessible={true}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: notificationSoundEnabled }}
-            >
-              {notificationSoundEnabled ? 'ON' : 'OFF'}
-            </Text>
+            <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => setNotificationSoundEnabled(!notificationSoundEnabled)} activeOpacity={0.7}>
+              <Text style={[styles.toggle, { color: notificationSoundEnabled ? colors.primary : colors.secondary }]}>
+                {notificationSoundEnabled ? 'ON' : 'OFF'}
+              </Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.prefRow}>
             <Text style={[styles.prefLabel, { color: colors.secondaryText }]}>Vibration</Text>
-            <Text
-              style={[styles.toggle, { color: notificationVibrationEnabled ? colors.primary : colors.secondary }]}
-              onPress={() => setNotificationVibrationEnabled(!notificationVibrationEnabled)}
-              accessible={true}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: notificationVibrationEnabled }}
-            >
-              {notificationVibrationEnabled ? 'ON' : 'OFF'}
-            </Text>
+            <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => setNotificationVibrationEnabled(!notificationVibrationEnabled)} activeOpacity={0.7}>
+              <Text style={[styles.toggle, { color: notificationVibrationEnabled ? colors.primary : colors.secondary }]}>
+                {notificationVibrationEnabled ? 'ON' : 'OFF'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -364,6 +347,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 13,
     fontWeight: '500',
+    borderBottomWidth: 2,
   },
   tabContent: {
     gap: 12,

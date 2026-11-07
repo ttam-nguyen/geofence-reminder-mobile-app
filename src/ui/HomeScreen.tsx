@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { ReminderListItem } from './components/ReminderListItem';
 import type { ReminderStatus } from '../models/ReminderStatus';
@@ -46,15 +46,15 @@ export function HomeScreen({
           <Text style={[styles.sectionTitle, { color: colors.primaryText }]}>Quick Actions</Text>
           <View style={styles.actionButtons}>
             {/* Add Reminder FAB (as a styled button) */}
-            <Text
-              style={[styles.fab, { color: '#FFFFFF' }]}
+            <TouchableOpacity
+              style={[styles.fab, { backgroundColor: '#F52232' }]}
               onPress={onNavigateCreate}
-              accessible={true}
-              accessibilityRole="button"
-              accessibilityLabel="Add new reminder"
+              activeOpacity={0.7}
             >
-              + Add Reminder
-            </Text>
+              <Text style={[styles.fab, { color: '#FFFFFF', backgroundColor: 'transparent' }]}>
+                + Add Reminder
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -74,14 +74,13 @@ export function HomeScreen({
               />
             ))}
             {activeReminders.length > 5 && (
-              <Text
-                style={[styles.seeAll, { color: colors.primary }]}
+              <TouchableOpacity
+                style={{ paddingVertical: 4 }}
                 onPress={onNavigateList}
-                accessible={true}
-                accessibilityRole="button"
+                activeOpacity={0.7}
               >
-                See all {activeReminders.length} reminders →
-              </Text>
+                <Text style={[styles.seeAll, { textAlign: 'center' }]}>See all {activeReminders.length} reminders →</Text>
+              </TouchableOpacity>
             )}
           </View>
         ) : (
@@ -90,14 +89,13 @@ export function HomeScreen({
             <Text style={[styles.emptyBody, { color: colors.secondary }]}>
               Create a reminder by selecting a location and radius.
             </Text>
-            <Text
-              style={[styles.emptyAction, { color: colors.primary }]}
+            <TouchableOpacity
+              style={{ paddingVertical: 4 }}
               onPress={onNavigateCreate}
-              accessible={true}
-              accessibilityRole="button"
+              activeOpacity={0.7}
             >
-              Create your first reminder →
-            </Text>
+              <Text style={[styles.emptyAction, { color: colors.primary }]}>Create your first reminder →</Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
