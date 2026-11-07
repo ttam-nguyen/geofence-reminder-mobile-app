@@ -369,7 +369,7 @@ uI/PermissionStatusView.test.tsx — 11 tests (rendering, permission messages, r
 6. **Drift-check.** Run `git diff <plan-commit>..HEAD -- <affected-paths>` to verify nothing was left behind.
 7. **Continue implementation.** Follow the remaining checklist items in order.
 
-**Last completed plan:** Plan 7 (Core UI Flows) + Android build working — commit `9ce74d56`.
+**Last completed plan:** Plan 7 (Core UI Flows) + Android build working — commit `5ab540f7`.
 **APK location:** `android/app/build/outputs/apk/debug/app-debug.apk`
 **Remaining plans:** 8 (Advertising), 9 (Paid Themes), 10 (Release Hardening).
 
