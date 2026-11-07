@@ -12,6 +12,7 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 
 import { useTheme } from '../theme/ThemeContext';
 import { Button } from '../components/Button';
+import { SafeAreaWrapper } from '../components/SafeAreaWrapper';
 
 export interface OnboardingScreenProps {
   /** Called after completing all 3 onboarding screens */
@@ -62,52 +63,54 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const screen = screens[currentScreen];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Screen indicator dots */}
-        <View style={styles.dotsContainer}>
-          {screens.map((_, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: idx === currentScreen ? colors.primary : colors.divider,
-                  width: idx === currentScreen ? 24 : 8,
-                },
-              ]}
-            />
-          ))}
-        </View>
+    <SafeAreaWrapper>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Screen indicator dots */}
+          <View style={styles.dotsContainer}>
+            {screens.map((_, idx) => (
+              <View
+                key={idx}
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor: idx === currentScreen ? colors.primary : colors.divider,
+                    width: idx === currentScreen ? 24 : 8,
+                  },
+                ]}
+              />
+            ))}
+          </View>
 
-        {/* Screen content */}
-        <Text style={[styles.title, { color: colors.primaryText }]}>{screen.title}</Text>
-        <Text style={[styles.subtitle, { color: colors.secondaryText }]}>{screen.subtitle}</Text>
-        <Text style={[styles.body, { color: colors.secondary }]}>{screen.body}</Text>
+          {/* Screen content */}
+          <Text style={[styles.title, { color: colors.primaryText }]}>{screen.title}</Text>
+          <Text style={[styles.subtitle, { color: colors.secondaryText }]}>{screen.subtitle}</Text>
+          <Text style={[styles.body, { color: colors.secondary }]}>{screen.body}</Text>
 
-        {/* Placeholder visual */}
-        <View style={[styles.visualPlaceholder, { backgroundColor: colors.glassBackground }]}>
-          <Text style={[styles.visualLabel, { color: colors.secondary }]}>App Preview</Text>
-        </View>
-      </ScrollView>
+          {/* Placeholder visual */}
+          <View style={[styles.visualPlaceholder, { backgroundColor: colors.glassBackground }]}>
+            <Text style={[styles.visualLabel, { color: colors.secondary }]}>App Preview</Text>
+          </View>
+        </ScrollView>
 
-      {/* Navigation buttons */}
-      <View style={styles.footer}>
-        {currentScreen > 0 && (
-          <Button variant="ghost" onPress={() => setCurrentScreen((prev) => (prev - 1) as ScreenIndex)} style={styles.backButton}>
-            Back
-          </Button>
-        )}
-        <View style={styles.buttonRow}>
-          <Button variant="ghost" onPress={handleSkip} style={styles.skipButton}>
-            Skip
-          </Button>
-          <Button variant="primary" onPress={handleNext} style={styles.nextButton}>
-            {isLastScreen ? 'Get Started' : 'Next'}
-          </Button>
+        {/* Navigation buttons */}
+        <View style={styles.footer}>
+          {currentScreen > 0 && (
+            <Button variant="ghost" onPress={() => setCurrentScreen((prev) => (prev - 1) as ScreenIndex)} style={styles.backButton}>
+              Back
+            </Button>
+          )}
+          <View style={styles.buttonRow}>
+            <Button variant="ghost" onPress={handleSkip} style={styles.skipButton}>
+              Skip
+            </Button>
+            <Button variant="primary" onPress={handleNext} style={styles.nextButton}>
+              {isLastScreen ? 'Get Started' : 'Next'}
+            </Button>
+          </View>
         </View>
       </View>
-    </View>
+    </SafeAreaWrapper>
   );
 }
 

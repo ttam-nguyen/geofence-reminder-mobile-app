@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useTheme } from '../theme/ThemeContext';
@@ -40,9 +40,25 @@ const SettingsScreenContainer = (_props: any) => (
   <SettingsScreen onNavigateNotifications={() => {}} />
 );
 
-const OnboardingContainer = (_props: any) => (
-  <OnboardingScreen onComplete={() => {}} />
-);
+const OnboardingContainer = (_props: any) => {
+  const navigation = useNavigation<any>();
+  const requestPermissions = async () => {
+    try {
+      const mod = await import('../native/GeofencingModule');
+      await mod.requestLocationPermission();
+      await mod.requestBackgroundPermission();
+    } catch {
+      // Native module not available — skip gracefully
+    }
+  };
+
+  const handleComplete = async () => {
+    await requestPermissions();
+    navigation.replace('HomeTab');
+  };
+
+  return <OnboardingScreen onComplete={handleComplete} />;
+};
 
 const CreateReminderContainer = (_props: any) => (
   <CreateReminderScreen reminderId={null} onSaved={() => {}} onCancel={() => {}} />
