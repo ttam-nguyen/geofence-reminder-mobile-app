@@ -89,22 +89,51 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
 
   // Handle map pin selection (from LocationPicker)
   const handleMapSelect = () => {
-    console.log('[CreateReminder] handleMapSelect called - opening Map screen');
-    // Navigate to Map screen instead of setting stub location
-    navigationRef?.current?.navigate('MapTab' as never);
+    console.log('[CreateReminder] handleMapSelect called - map view not yet integrated');
+    Alert.alert(
+      'Map View',
+      'Interactive map pin placement is not yet implemented.\n\nUsing a default location for testing.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            const stubLocation: TargetLocation = {
+              latitude: 37.7849,
+              longitude: -122.4094,
+              source: LocationSource.MAP_PIN,
+              timestamp: Date.now(),
+            };
+            console.log('[CreateReminder] Using stub map location:', stubLocation);
+            setSelectedLocation(stubLocation);
+          },
+        },
+      ]
+    );
   };
 
   // Handle search selection (from LocationPicker)
   const handleSearchSelect = () => {
-    console.log('[CreateReminder] handleSearchSelect called - stub, using default location');
-    const location: TargetLocation = {
-      latitude: 37.7649,
-      longitude: -122.4294,
-      locationName: 'Selected Location',
-      source: LocationSource.PLACE_SEARCH,
-      timestamp: Date.now(),
-    };
-    setSelectedLocation(location);
+    console.log('[CreateReminder] handleSearchSelect called - place search not yet integrated');
+    Alert.alert(
+      'Place Search',
+      'Address/place search is not yet implemented.\n\nUsing a default location for testing.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            const stubLocation: TargetLocation = {
+              latitude: 37.7649,
+              longitude: -122.4294,
+              locationName: 'Selected Location',
+              source: LocationSource.PLACE_SEARCH,
+              timestamp: Date.now(),
+            };
+            console.log('[CreateReminder] Using stub search location:', stubLocation);
+            setSelectedLocation(stubLocation);
+          },
+        },
+      ]
+    );
   };
 
   // Handle radius preset selection
@@ -289,8 +318,8 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
             ))}
           </View>
 
-          {/* Fine-grained radius slider for values less than 100m */}
-          {radiusMeters < 100 && (
+          {/* Fine-grained radius slider for values 100m and below */}
+          {radiusMeters <= 100 && (
             <View style={styles.sliderContainer}>
               <Text style={[styles.sliderLabel, { color: colors.secondary }]}>
                 Fine tune: {radiusMeters}m
@@ -470,7 +499,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 40,
+    paddingBottom: 80,
     borderTopWidth: 1,
   },
   saveButton: {

@@ -168,10 +168,10 @@ export const AppNavigator = () => {
         {/* Main app (tab-based) */}
         <Stack.Screen name="HomeTab" component={TabNavigator} options={{ headerShown: false }} />
 
-        {/* Full-screen screens */}
-        <Stack.Screen name="CreateReminder" component={CreateReminderContainer} options={{ title: 'New Reminder' }} />
-        <Stack.Screen name="ReminderList" component={ReminderListContainer} options={{ title: 'All Reminders' }} />
-        <Stack.Screen name="ReminderDetail" component={ReminderDetailContainer} options={{ title: 'Reminder Details' }} />
+        {/* Full-screen screens (no RN header — they have custom headers) */}
+        <Stack.Screen name="CreateReminder" component={CreateReminderContainer} options={{ headerShown: false, title: 'New Reminder' }} />
+        <Stack.Screen name="ReminderList" component={ReminderListContainer} options={{ headerShown: false, title: 'All Reminders' }} />
+        <Stack.Screen name="ReminderDetail" component={ReminderDetailContainer} options={{ headerShown: false, title: 'Reminder Details' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
