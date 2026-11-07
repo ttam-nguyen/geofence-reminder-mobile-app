@@ -6,6 +6,7 @@ import React from 'react';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import { Alert, Image, View, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import type { RootStackParamList, TabParamList } from './navigationTypes';
 
@@ -46,7 +47,17 @@ const MapScreenContainer = (_props: any) => {
 };
 
 const SettingsScreenContainer = (_props: any) => (
-  <SettingsScreen onNavigateNotifications={() => {}} />
+  <SettingsScreen
+    onNavigateNotifications={() => {
+      console.log('[Settings] Notification Preferences pressed - showing current settings');
+      // For now, show an alert with notification status (MVP placeholder)
+      Alert.alert(
+        'Notification Preferences',
+        'Local notifications are configured per reminder.\n\n• Sound: Enabled by default\n• Vibration: Enabled by default\n• No data sent to external servers',
+        [{ text: 'OK' }]
+      );
+    }}
+  />
 );
 
 const OnboardingContainer = (_props: any) => {
@@ -134,6 +145,13 @@ const TabNavigator = () => {
 export const AppNavigator = () => {
   return (
     <NavigationContainer>
+      <View style={styles.backgroundImage}>
+        <Image
+          source={require('../../assets/backgrounds/glass_frosted_geometric_background.png')}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      </View>
       <Stack.Navigator
         screenOptions={{
           headerStyle: { backgroundColor: '#E5EAED' },
@@ -158,3 +176,14 @@ export const AppNavigator = () => {
     </NavigationContainer>
   );
 };
+
+const styles = StyleSheet.create({
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: -1,
+  },
+});

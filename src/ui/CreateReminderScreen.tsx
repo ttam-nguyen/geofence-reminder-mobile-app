@@ -5,8 +5,9 @@
  * Validates title, location, and radius before saving.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme/ThemeContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -29,6 +30,9 @@ export interface CreateReminderScreenProps {
 const RADIUS_PRESETS = [100, 200, 500, 1000];
 
 export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateReminderScreenProps) {
+  const navigation = useNavigation<any>();
+  const navigationRef = useRef(navigation);
+  navigationRef.current = navigation;
   const { theme } = useTheme();
   const { colors } = theme;
 
@@ -57,6 +61,7 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
 
   // Handle GPS selection
   const handleGPSSelect = () => {
+    console.log('[CreateReminder] handleGPSSelect called');
     if (currentLocation) {
       const location = {
         latitude: currentLocation.latitude,
@@ -65,23 +70,33 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
         source: LocationSource.CURRENT_GPS,
         timestamp: Date.now(),
       };
+      console.log('[CreateReminder] GPS location set:', location);
       setSelectedLocation(location);
+    } else {
+      console.log('[CreateReminder] No GPS location available (stub mode)');
+      // Stub: use a default location for testing
+      const stubLocation: TargetLocation = {
+        latitude: 37.7749,
+        longitude: -122.4194,
+        accuracy: 50,
+        source: LocationSource.CURRENT_GPS,
+        timestamp: Date.now(),
+      };
+      console.log('[CreateReminder] Using stub GPS location:', stubLocation);
+      setSelectedLocation(stubLocation);
     }
   };
 
   // Handle map pin selection (from LocationPicker)
   const handleMapSelect = () => {
-    const location: TargetLocation = {
-      latitude: 37.7849,
-      longitude: -122.4094,
-      source: LocationSource.MAP_PIN,
-      timestamp: Date.now(),
-    };
-    setSelectedLocation(location);
+    console.log('[CreateReminder] handleMapSelect called - opening Map screen');
+    // Navigate to Map screen instead of setting stub location
+    navigationRef?.current?.navigate('MapTab' as never);
   };
 
   // Handle search selection (from LocationPicker)
   const handleSearchSelect = () => {
+    console.log('[CreateReminder] handleSearchSelect called - stub, using default location');
     const location: TargetLocation = {
       latitude: 37.7649,
       longitude: -122.4294,
@@ -134,7 +149,7 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.divider }]}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
         <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
           console.log('[CreateReminder] Back pressed');
           onCancel();
@@ -273,6 +288,27 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
               </Button>
             ))}
           </View>
+
+          {/* Fine-grained radius slider for values less than 100m */}
+          {radiusMeters < 100 && (
+            <View style={styles.sliderContainer}>
+              <Text style={[styles.sliderLabel, { color: colors.secondary }]}>
+                Fine tune: {radiusMeters}m
+              </Text>
+              <View style={styles.sliderTrack}>
+                {[10, 20, 30, 40, 50, 60, 70, 80, 90].map((val) => (
+                  <TouchableOpacity
+                    key={val}
+                    style={[styles.sliderDot, radiusMeters === val && styles.sliderDotActive]}
+                    onPress={() => {
+                      console.log('[CreateReminder] Radius slider selected:', val);
+                      setRadiusMeters(val);
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Notification preferences */}
@@ -434,9 +470,33 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 20,
     paddingTop: 16,
+    paddingBottom: 40,
     borderTopWidth: 1,
   },
   saveButton: {
     borderRadius: 28,
+  },
+  sliderContainer: {
+    marginTop: 16,
+    paddingHorizontal: 4,
+  },
+  sliderLabel: {
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  sliderTrack: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 20,
+  },
+  sliderDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+  },
+  sliderDotActive: {
+    backgroundColor: '#F52232',
   },
 });
