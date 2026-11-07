@@ -6,11 +6,7 @@
 
 import { NativeEventEmitter, NativeModules } from 'react-native';
 
-const { GeofencingModule } = NativeModules;
-
-if (!GeofencingModule) {
-  throw new Error('GeofencingModule is not registered. Check your native module setup.');
-}
+const nativeModule = (NativeModules as any).GeofencingModule || null;
 
 /** Parameters for registering a single geofence. */
 export interface RegisterGeofenceParams {
@@ -73,16 +69,19 @@ interface NativeGeofencingModule {
   isGooglePlayServicesAvailable: () => Promise<boolean>;
 }
 
-// Cast the native module to our typed interface
-const typedModule = GeofencingModule as NativeGeofencingModule;
+// Cast the native module to our typed interface (null-safe)
+const typedModule = nativeModule as NativeGeofencingModule | null;
 
-// Create event emitter for geofence boundary-crossing events
-const nativeEmitter = new NativeEventEmitter(GeofencingModule);
+// Create event emitter for geofence boundary-crossing events (only if native module exists)
+const nativeEmitter = nativeModule ? new NativeEventEmitter(nativeModule) : null;
 
 /** Subscribes to geofence events. Returns unsubscribe function. */
 export function onGeofenceEvent(
   listener: (event: GeofenceEvent) => void,
 ): () => void {
+  if (!nativeEmitter) {
+    return () => {};
+  }
   const subscription = nativeEmitter.addListener('GeofenceEvent', (data: GeofenceEvent) => {
     listener(data);
   });
@@ -98,6 +97,7 @@ export function onGeofenceEvent(
 export async function registerGeofence(
   params: RegisterGeofenceParams,
 ): Promise<{ success: boolean; error?: string }> {
+  if (!typedModule) return { success: false, error: 'Native module not available' };
   return typedModule.registerGeofence(params);
 }
 
@@ -105,31 +105,37 @@ export async function registerGeofence(
 export async function unregisterGeofence(
   requestId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  if (!typedModule) return { success: false, error: 'Native module not available' };
   return typedModule.unregisterGeofence(requestId);
 }
 
 /** Remove all registered geofences. */
 export async function unregisterAllGeofences(): Promise<{ success: boolean }> {
+  if (!typedModule) return { success: false };
   return typedModule.unregisterAllGeofences();
 }
 
 /** Check current permission states. */
 export async function checkPermissions(): Promise<PermissionStatus> {
+  if (!typedModule) return { locationPermission: 'never_asked', notificationPermission: 'never_asked', backgroundLocationAllowed: false };
   return typedModule.checkPermissions();
 }
 
 /** Request location permission (foreground). */
 export async function requestLocationPermission(): Promise<'granted' | 'denied' | 'never_asked'> {
+  if (!typedModule) return 'never_asked';
   return typedModule.requestLocationPermission();
 }
 
 /** Request background location permission (iOS "Always"). */
 export async function requestBackgroundPermission(): Promise<boolean> {
+  if (!typedModule) return false;
   return typedModule.requestBackgroundPermission();
 }
 
 /** Check if Google Play Services is available (Android only). */
 export async function isGooglePlayServicesAvailable(): Promise<boolean> {
+  if (!typedModule) return false;
   return typedModule.isGooglePlayServicesAvailable();
 }
 

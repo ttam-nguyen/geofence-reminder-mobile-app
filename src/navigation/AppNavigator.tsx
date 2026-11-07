@@ -48,7 +48,7 @@ const OnboardingContainer = (_props: any) => {
       await mod.requestLocationPermission();
       await mod.requestBackgroundPermission();
     } catch {
-      // Native module not available — skip gracefully
+      // Native module not registered — skip permission requests gracefully
     }
   };
 
