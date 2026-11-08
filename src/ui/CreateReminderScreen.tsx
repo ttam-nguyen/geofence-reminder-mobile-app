@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 160,
+    paddingBottom: 20,
     borderTopWidth: 1,
   },
   saveButton: {
