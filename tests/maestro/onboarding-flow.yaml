@@ -1,0 +1,8 @@
+appId: com.gpsreminder
+---
+- launchApp:
+    clearState: true
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Get Started"
+- assertVisible: "Reminders"

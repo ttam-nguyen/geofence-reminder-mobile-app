@@ -5,7 +5,8 @@
  * the repository interfaces defined in src/services/.
  */
 
-import { getDb } from './SQLiteAdapter';
+import { openDatabase } from './SQLiteAdapter';
+import SQLite from 'react-native-sqlite-storage';
 import type { ReminderRepository, EventRepository, NotificationLogRepository } from '../services/ReminderRepository';
 import type { Reminder } from '../models/Reminder';
 import type { ReminderStatus } from '../models/ReminderStatus';
@@ -34,6 +35,11 @@ function rowToReminder(row: Record<string, unknown>): Reminder {
 }
 
 import { LocationSource } from '../models/LocationSource';
+
+/** Ensures the database is initialized before any repository operation. */
+async function ensureDb(): Promise<ReturnType<typeof SQLite.openDatabase>> {
+  return openDatabase();
+}
 
 /** Converts a SQLite row to a ReminderEvent object. */
 function rowToEvent(row: Record<string, unknown>): ReminderEvent {
@@ -66,7 +72,7 @@ function rowToNotificationRecord(row: Record<string, unknown>): NotificationDeli
 /** SQLite-backed reminder repository. */
 export const sqliteReminderRepository: ReminderRepository = {
   async getById(id: string): Promise<Reminder | null> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const result = await db.executeSql(
@@ -79,7 +85,7 @@ export const sqliteReminderRepository: ReminderRepository = {
   },
 
   async getAll(): Promise<Reminder[]> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const result = await db.executeSql('SELECT * FROM reminders ORDER BY updatedAt DESC');
@@ -88,7 +94,7 @@ export const sqliteReminderRepository: ReminderRepository = {
   },
 
   async getActive(): Promise<Reminder[]> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const result = await db.executeSql(
@@ -99,7 +105,7 @@ export const sqliteReminderRepository: ReminderRepository = {
   },
 
   async create(reminder: Omit<Reminder, 'id' | 'createdAt' | 'updatedAt'>): Promise<Reminder> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const now = new Date().toISOString();
@@ -135,7 +141,7 @@ export const sqliteReminderRepository: ReminderRepository = {
   },
 
   async update(id: string, changes: Partial<Reminder>): Promise<Reminder | null> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     // Check if reminder exists
@@ -172,7 +178,7 @@ export const sqliteReminderRepository: ReminderRepository = {
   },
 
   async delete(id: string): Promise<boolean> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const result = await db.executeSql('DELETE FROM reminders WHERE id = ?', [id]);
@@ -180,7 +186,7 @@ export const sqliteReminderRepository: ReminderRepository = {
   },
 
   async getByStatus(status: ReminderStatus): Promise<Reminder[]> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const result = await db.executeSql(
@@ -195,7 +201,7 @@ export const sqliteReminderRepository: ReminderRepository = {
 /** SQLite-backed event repository. */
 export const sqliteEventRepository: EventRepository = {
   async create(event: Omit<ReminderEvent, 'id'>): Promise<ReminderEvent> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const generatedId = `event_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -219,7 +225,7 @@ export const sqliteEventRepository: EventRepository = {
   },
 
   async getByReminderId(reminderId: string): Promise<ReminderEvent[]> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const result = await db.executeSql(
@@ -231,7 +237,7 @@ export const sqliteEventRepository: EventRepository = {
   },
 
   async deleteByReminderId(reminderId: string): Promise<boolean> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     await db.executeSql('DELETE FROM reminder_events WHERE reminderId = ?', [reminderId]);
@@ -242,7 +248,7 @@ export const sqliteEventRepository: EventRepository = {
 /** SQLite-backed notification delivery log repository. */
 export const sqliteNotificationLogRepository: NotificationLogRepository = {
   async create(record: Omit<NotificationDeliveryRecord, 'id'>): Promise<NotificationDeliveryRecord> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const generatedId = `notif_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -264,7 +270,7 @@ export const sqliteNotificationLogRepository: NotificationLogRepository = {
   },
 
   async getById(id: string): Promise<NotificationDeliveryRecord | null> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const result = await db.executeSql(
@@ -277,7 +283,7 @@ export const sqliteNotificationLogRepository: NotificationLogRepository = {
   },
 
   async getByReminderId(reminderId: string): Promise<NotificationDeliveryRecord[]> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const result = await db.executeSql(
@@ -289,7 +295,7 @@ export const sqliteNotificationLogRepository: NotificationLogRepository = {
   },
 
   async getPending(): Promise<NotificationDeliveryRecord[]> {
-    const db = getDb();
+    const db = await ensureDb();
     if (!db) throw new Error('Database not opened');
 
     const result = await db.executeSql(

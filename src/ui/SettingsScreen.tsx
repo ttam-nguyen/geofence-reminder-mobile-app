@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import { SafeAreaWrapper } from '../components/SafeAreaWrapper';
 
 export interface SettingsScreenProps {
   /** Navigate to notification permissions screen */
@@ -18,7 +19,8 @@ export function SettingsScreen({ onNavigateNotifications, appVersion = '0.1.0' }
   const { colors } = theme;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaWrapper>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>Settings</Text>
@@ -89,6 +91,7 @@ export function SettingsScreen({ onNavigateNotifications, appVersion = '0.1.0' }
         </View>
       </ScrollView>
     </View>
+    </SafeAreaWrapper>
   );
 }
 

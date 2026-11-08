@@ -8,6 +8,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { ReminderListItem } from './components/ReminderListItem';
 import { ReminderMapView } from './components/ReminderMapView';
 import { PermissionStatusView } from './PermissionStatusView';
+import { SafeAreaWrapper } from '../components/SafeAreaWrapper';
 
 export interface ReminderDetailScreenProps {
   /** Navigate to edit the reminder */
@@ -44,7 +45,8 @@ export function ReminderDetailScreen({
 
   if (!reminder) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaWrapper>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.errorTitle, { color: colors.primaryText }]}>Reminder not found</Text>
         <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
           console.log('[ReminderDetail] Back to list pressed (reminder not found)');
@@ -53,6 +55,7 @@ export function ReminderDetailScreen({
           <Text style={[styles.backLink, { color: colors.primary }]}>← Back to list</Text>
         </TouchableOpacity>
       </View>
+    </SafeAreaWrapper>
     );
   }
 
@@ -77,7 +80,8 @@ export function ReminderDetailScreen({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaWrapper>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
         <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
@@ -157,6 +161,7 @@ export function ReminderDetailScreen({
         </View>
       </ScrollView>
     </View>
+    </SafeAreaWrapper>
   );
 }
 

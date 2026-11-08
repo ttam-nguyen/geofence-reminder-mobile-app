@@ -8,6 +8,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { SafeAreaWrapper } from '../components/SafeAreaWrapper';
 import { useTheme } from '../theme/ThemeContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -176,14 +177,15 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaWrapper>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
         <TouchableOpacity style={{ paddingVertical: 4 }} onPress={() => {
           console.log('[CreateReminder] Back pressed');
           onCancel();
         }} activeOpacity={0.7}>
-          <Text style={[styles.backButton, { color: colors.primary }]}>← Back</Text>
+          <Text style={[styles.backButton, { color: colors.primary }]}>Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>
           {reminderId ? 'Edit Reminder' : 'New Reminder'}
@@ -392,6 +394,7 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
         </Button>
       </View>
     </View>
+    </SafeAreaWrapper>
   );
 }
 
@@ -499,7 +502,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 80,
+    paddingBottom: 160,
     borderTopWidth: 1,
   },
   saveButton: {

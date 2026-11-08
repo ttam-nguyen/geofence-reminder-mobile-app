@@ -8,6 +8,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Alert, Image, View, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import { useReminderStore } from '../stores/reminderStore';
 import type { RootStackParamList, TabParamList } from './navigationTypes';
 
 // Import all screens
@@ -26,12 +27,17 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 const HomeScreenContainer = (_props: any) => {
   const navigation = useNavigation<any>();
+  const reminders = useReminderStore((state) => state.reminders);
+  const activeReminders = React.useMemo(
+    () => reminders.filter((r) => r.status === 'ARMED' || r.status === 'WAITING_FOR_EXIT'),
+    [reminders],
+  );
   return (
     <HomeScreen
       onNavigateCreate={() => navigation.navigate('CreateReminder' as never)}
       onNavigateList={() => navigation.navigate('ReminderList' as never)}
-      activeReminders={[]}
-      totalCount={0}
+      activeReminders={activeReminders}
+      totalCount={reminders.length}
     />
   );
 };

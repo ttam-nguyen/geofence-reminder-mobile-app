@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { ReminderListItem } from './components/ReminderListItem';
+import { SafeAreaWrapper } from '../components/SafeAreaWrapper';
 import type { ReminderStatus } from '../models/ReminderStatus';
 
 export interface ReminderListScreenProps {
@@ -62,7 +63,8 @@ export function ReminderListScreen({
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaWrapper>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>Reminders</Text>
@@ -139,6 +141,7 @@ export function ReminderListScreen({
         )}
       </ScrollView>
     </View>
+    </SafeAreaWrapper>
   );
 }
 

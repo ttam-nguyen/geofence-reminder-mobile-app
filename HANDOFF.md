@@ -12,9 +12,9 @@
 
 ## Current State: Plan 5 Complete
 
-**Last committed:** `3b9c9e3b` (Plan 5 — Location Selection & Maps)
+**Last committed:** `fb3b5eb5` (save stack fix + home store wiring + Maestro test)
 
-**Tests passing:** 179/179 ✅
+**Tests passing:** 219/219 ✅
 **TypeScript:** Compiles clean ✅
 
 ### Plans Completed (0–5)
@@ -34,8 +34,6 @@
 
 | Plan | Feature | Depends On | What it delivers |
 |---|---|---|---|
-| 6 | Notifications & Recovery | 2, 3 | Local notification delivery (sound/vibration), permission status UI, app/device restart recovery |
-| 7 | Core UI Flows | 1, 2, 5, 6 | All 7 screens (onboarding, home, create, list, details, map, settings) wired with real navigation |
 | 8 | Advertising | 7 | Banner ads, list ads, rewarded ads, consent flow (GDPR/CCPA) |
 | 9 | Paid Themes | 1, 7 | Theme marketplace with IAP (purchase, restore, entitlements) |
 | 10 | Release Hardening | All | Real-device test matrix (21 scenarios), performance profiling, store metadata, release builds |
@@ -124,7 +122,7 @@ docs/superpowers/plans/  # All implementation plans (0–10)
 # Verify TypeScript compiles clean
 npx tsc --noEmit
 
-# Run all 179 unit tests
+# Run all 219 unit tests
 npx vitest run
 
 # Lint check (no prettier rule — known issue)
@@ -369,7 +367,7 @@ uI/PermissionStatusView.test.tsx — 11 tests (rendering, permission messages, r
 6. **Drift-check.** Run `git diff <plan-commit>..HEAD -- <affected-paths>` to verify nothing was left behind.
 7. **Continue implementation.** Follow the remaining checklist items in order.
 
-**Last completed plan:** Plan 7 (Core UI Flows) + Android build working — commit `a922e90c`.
+**Last completed plan:** Plan 7 (Core UI Flows) + save stack fix + Maestro test — commit `fb3b5eb5`.
 **APK location:** `android/app/build/outputs/apk/debug/app-debug.apk`
 **Remaining plans:** 8 (Advertising), 9 (Paid Themes), 10 (Release Hardening).
 
@@ -394,7 +392,7 @@ npm install --legacy-peer-deps
 
 # Verify everything works (no device needed)
 npx tsc --noEmit           # TypeScript check — should have zero errors
-npx vitest run             # Run all 179 tests — should all pass
+npx vitest run             # Run all 219 tests — should all pass
 npx eslint src/            # Lint check (no prettier rule)
 
 # Run on device (after Plans 6+7 are done)

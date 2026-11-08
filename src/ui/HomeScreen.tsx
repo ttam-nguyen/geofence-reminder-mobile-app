@@ -6,6 +6,7 @@ import React from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { ReminderListItem } from './components/ReminderListItem';
+import { SafeAreaWrapper } from '../components/SafeAreaWrapper';
 import type { ReminderStatus } from '../models/ReminderStatus';
 
 export interface HomeScreenProps {
@@ -29,7 +30,8 @@ export function HomeScreen({
   const { colors } = theme;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaWrapper>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>GPS Reminder</Text>
@@ -108,7 +110,8 @@ export function HomeScreen({
           </View>
         )}
       </ScrollView>
-    </View>
+      </View>
+    </SafeAreaWrapper>
   );
 }
 

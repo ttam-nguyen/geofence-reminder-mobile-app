@@ -6,6 +6,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { MapView } from './MapView';
+import { SafeAreaWrapper } from '../components/SafeAreaWrapper';
 import type { ReminderStatus } from '../models/ReminderStatus';
 
 export interface MapScreenProps {
@@ -26,7 +27,8 @@ export function MapScreen({ onNavigateCreate, reminders }: MapScreenProps) {
   const lastReminder = reminders[reminders.length - 1];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaWrapper>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
         <Text style={[styles.headerTitle, { color: colors.primaryText }]}>Map</Text>
@@ -58,6 +60,7 @@ export function MapScreen({ onNavigateCreate, reminders }: MapScreenProps) {
         </Text>
       </View>
     </View>
+    </SafeAreaWrapper>
   );
 }
 
