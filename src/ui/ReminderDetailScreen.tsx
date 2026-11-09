@@ -9,6 +9,7 @@ import { ReminderListItem } from './components/ReminderListItem';
 import { ReminderMapView } from './components/ReminderMapView';
 import { PermissionStatusView } from './PermissionStatusView';
 import { SafeAreaWrapper } from '../components/SafeAreaWrapper';
+import { ReminderStatus } from '../models/ReminderStatus';
 
 export interface ReminderDetailScreenProps {
   /** Navigate to edit the reminder */
@@ -17,6 +18,8 @@ export interface ReminderDetailScreenProps {
   onNavigateBack: () => void;
   /** Delete this reminder (with confirmation) */
   onDelete: (reminderId: string) => void;
+  /** Toggle between ARMED and PAUSED (arming/disarming) */
+  onToggleStatus?: (reminderId: string, newStatus: ReminderStatus) => void;
   /** The reminder to display */
   reminder: {
     id: string;
@@ -38,6 +41,7 @@ export function ReminderDetailScreen({
   onNavigateEdit,
   onNavigateBack,
   onDelete,
+  onToggleStatus,
   reminder,
 }: ReminderDetailScreenProps) {
   const { theme } = useTheme();
@@ -78,6 +82,23 @@ export function ReminderDetailScreen({
     if (!ts) return '—';
     return new Date(ts).toLocaleString();
   };
+
+  // Determine toggleable states: ARMED, DRAFT, WAITING_FOR_EXIT (disarm), PAUSED (re-arm)
+  const isToggleable = reminder.status === ReminderStatus.ARMED
+    || reminder.status === ReminderStatus.DRAFT
+    || reminder.status === ReminderStatus.WAITING_FOR_EXIT
+    || reminder.status === ReminderStatus.PAUSED;
+
+  const handleToggleStatus = () => {
+    if (!onToggleStatus || !isToggleable) return;
+    const targetStatus = reminder.status === ReminderStatus.ARMED
+      ? ReminderStatus.PAUSED
+      : ReminderStatus.ARMED;
+    console.log('[ReminderDetail] Toggling status:', reminder.status, '→', targetStatus);
+    onToggleStatus(reminder.id, targetStatus);
+  };
+
+  const toggleLabel = reminder.status === ReminderStatus.PAUSED ? 'Activate' : 'Deactivate';
 
   return (
     <SafeAreaWrapper>
@@ -137,6 +158,21 @@ export function ReminderDetailScreen({
             radiusMeters={reminder.radiusMeters}
             status={reminder.status as any}
           />
+
+          {/* Toggle: Arm / Disarm (only for toggleable states) */}
+          {isToggleable && onToggleStatus && (
+            <TouchableOpacity
+              style={[styles.toggleButton, { backgroundColor: reminder.status === ReminderStatus.PAUSED ? '#48BB78' : '#F52232' }]}
+              onPress={handleToggleStatus}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.toggleButtonText}>
+                {toggleLabel}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+
 
           {/* Timestamps */}
           <View style={styles.timestamps}>
@@ -233,5 +269,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginTop: 40,
+  },
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    gap: 8,
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

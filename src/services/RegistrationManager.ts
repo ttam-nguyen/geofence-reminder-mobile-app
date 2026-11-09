@@ -21,6 +21,7 @@ export const PRIORITY: Record<ReminderStatus, number> = {
   [ReminderStatus.TRIGGERED]: 0,
   [ReminderStatus.COMPLETED]: 0,
   [ReminderStatus.CANCELLED]: 0,
+  [ReminderStatus.PAUSED]: 0,
 };
 
 /** Internal tracking of registered geofences. */

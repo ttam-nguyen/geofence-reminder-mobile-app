@@ -16,8 +16,12 @@ export interface HomeScreenProps {
   onNavigateList: () => void;
   /** Navigate to detail screen for a specific reminder */
   onNavigateDetail: (reminderId: string) => void;
+  /** Re-arm a PAUSED reminder */
+  onRemind?: (reminderId: string) => void;
   /** Active reminders (ARMED + WAITING_FOR_EXIT) */
   activeReminders: Array<{ id: string; title: string; locationName: string | null; radiusMeters: number; status: ReminderStatus }>;
+  /** Paused reminders (can be re-armed) */
+  inactiveReminders: Array<{ id: string; title: string; locationName: string | null; radiusMeters: number; status: ReminderStatus }>;
   /** Total reminder count */
   totalCount: number;
 }
@@ -26,7 +30,9 @@ export function HomeScreen({
   onNavigateCreate,
   onNavigateList,
   onNavigateDetail,
+  onRemind,
   activeReminders,
+  inactiveReminders,
   totalCount,
 }: HomeScreenProps) {
   const { theme } = useTheme();
@@ -66,35 +72,8 @@ export function HomeScreen({
           </View>
         </View>
 
-        {/* Active reminders preview */}
-        {activeReminders.length > 0 ? (
-          <View style={styles.remindersSection}>
-            <Text style={[styles.sectionTitle, { color: colors.primaryText }]}>Active Reminders</Text>
-            {activeReminders.slice(0, 5).map((reminder) => (
-              <ReminderListItem
-                key={reminder.id}
-                title={reminder.title}
-                locationName={reminder.locationName}
-                radiusMeters={reminder.radiusMeters}
-                status={reminder.status}
-                isActive
-                onPress={() => onNavigateDetail(reminder.id)}
-              />
-            ))}
-            {activeReminders.length > 5 && (
-              <TouchableOpacity
-                style={{ paddingVertical: 4 }}
-                onPress={() => {
-                  console.log('[Home] See all pressed: navigate to ReminderList, active count:', activeReminders.length);
-                  onNavigateList();
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.seeAll, { textAlign: 'center' }]}>See all {activeReminders.length} reminders →</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : (
+        {/* Unified reminders list: active first, then paused */}
+        {activeReminders.length === 0 && inactiveReminders.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyTitle, { color: colors.primaryText }]}>No active reminders</Text>
             <Text style={[styles.emptyBody, { color: colors.secondary }]}>
@@ -110,6 +89,59 @@ export function HomeScreen({
             >
               <Text style={[styles.emptyAction, { color: colors.primary }]}>Create your first reminder →</Text>
             </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.remindersSection}>
+            {/* Active reminders */}
+            {activeReminders.slice(0, 5).map((reminder) => (
+              <ReminderListItem
+                key={reminder.id}
+                title={reminder.title}
+                locationName={reminder.locationName}
+                radiusMeters={reminder.radiusMeters}
+                status={reminder.status}
+                isActive
+                onPress={() => onNavigateDetail(reminder.id)}
+              />
+            ))}
+
+            {/* Paused reminders (re-arm) */}
+            {inactiveReminders.map((reminder) => (
+              <View key={reminder.id} style={{ gap: 8 }}>
+                <ReminderListItem
+                  title={reminder.title}
+                  locationName={reminder.locationName}
+                  radiusMeters={reminder.radiusMeters}
+                  status={reminder.status}
+                  onPress={() => onNavigateDetail(reminder.id)}
+                />
+                {onRemind && (
+                  <TouchableOpacity
+                    style={[styles.rearmButton, { backgroundColor: '#48BB78' }]}
+                    onPress={() => {
+                      console.log('[Home] Re-arm pressed, reminderId:', reminder.id);
+                      onRemind(reminder.id);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.rearmButtonText}>▶ Remind (Re-arm)</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+
+            {activeReminders.length > 5 && (
+              <TouchableOpacity
+                style={{ paddingVertical: 4 }}
+                onPress={() => {
+                  console.log('[Home] See all pressed: navigate to ReminderList, active count:', activeReminders.length);
+                  onNavigateList();
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.seeAll, { textAlign: 'center' }]}>See all {activeReminders.length} reminders →</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </ScrollView>
@@ -174,6 +206,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  rearmButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  rearmButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   emptyState: {
     alignItems: 'center',

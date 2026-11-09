@@ -22,4 +22,7 @@ export enum ReminderStatus {
 
   /** User cancelled the reminder (deleted from active set) */
   CANCELLED = 'CANCELLED',
+
+  /** User paused monitoring; reminder is inactive but preserved */
+  PAUSED = 'PAUSED',
 }

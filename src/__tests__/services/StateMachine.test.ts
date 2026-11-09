@@ -4,7 +4,7 @@ import { ReminderStatus } from '../../models/ReminderStatus';
 import { canTransition, haversineDistance, determineInitialStatus, validTransitions } from '../../services/StateMachine';
 
 describe('validTransitions Table', () => {
-  it('has all 6 states as keys', () => {
+  it('has all 7 states as keys', () => {
     const keys = Object.keys(validTransitions);
     expect(keys).toContain(ReminderStatus.DRAFT);
     expect(keys).toContain(ReminderStatus.WAITING_FOR_EXIT);
@@ -12,18 +12,19 @@ describe('validTransitions Table', () => {
     expect(keys).toContain(ReminderStatus.TRIGGERED);
     expect(keys).toContain(ReminderStatus.COMPLETED);
     expect(keys).toContain(ReminderStatus.CANCELLED);
+    expect(keys).toContain(ReminderStatus.PAUSED);
   });
 
-  it('DRAFT can transition to ARMED, WAITING_FOR_EXIT, COMPLETED, CANCELLED', () => {
-    expect(validTransitions[ReminderStatus.DRAFT]).toHaveLength(4);
+  it('DRAFT can transition to ARMED, WAITING_FOR_EXIT, COMPLETED, CANCELLED, PAUSED', () => {
+    expect(validTransitions[ReminderStatus.DRAFT]).toHaveLength(5);
   });
 
-  it('WAITING_FOR_EXIT can transition to ARMED, CANCELLED', () => {
-    expect(validTransitions[ReminderStatus.WAITING_FOR_EXIT]).toHaveLength(2);
+  it('WAITING_FOR_EXIT can transition to ARMED, CANCELLED, PAUSED', () => {
+    expect(validTransitions[ReminderStatus.WAITING_FOR_EXIT]).toHaveLength(3);
   });
 
-  it('ARMED can transition to TRIGGERED, COMPLETED, CANCELLED', () => {
-    expect(validTransitions[ReminderStatus.ARMED]).toHaveLength(3);
+  it('ARMED can transition to TRIGGERED, COMPLETED, CANCELLED, PAUSED', () => {
+    expect(validTransitions[ReminderStatus.ARMED]).toHaveLength(4);
   });
 
   it('TRIGGERED can only transition to COMPLETED', () => {
@@ -36,6 +37,10 @@ describe('validTransitions Table', () => {
 
   it('CANCELLED has no valid transitions (terminal)', () => {
     expect(validTransitions[ReminderStatus.CANCELLED]).toHaveLength(0);
+  });
+
+  it('PAUSED can transition to ARMED, COMPLETED, CANCELLED', () => {
+    expect(validTransitions[ReminderStatus.PAUSED]).toHaveLength(3);
   });
 });
 
@@ -109,6 +114,31 @@ describe('canTransition', () => {
 
   it('blocks ARMED → WAITING_FOR_EXIT (must complete or cancel)', () => {
     expect(canTransition(ReminderStatus.ARMED, ReminderStatus.WAITING_FOR_EXIT)).toBe(false);
+  });
+
+  // PAUSED transitions
+  it('allows DRAFT → PAUSED (pause during creation)', () => {
+    expect(canTransition(ReminderStatus.DRAFT, ReminderStatus.PAUSED)).toBe(true);
+  });
+
+  it('allows WAITING_FOR_EXIT → PAUSED (pause while waiting for exit)', () => {
+    expect(canTransition(ReminderStatus.WAITING_FOR_EXIT, ReminderStatus.PAUSED)).toBe(true);
+  });
+
+  it('allows ARMED → PAUSED (disarm)', () => {
+    expect(canTransition(ReminderStatus.ARMED, ReminderStatus.PAUSED)).toBe(true);
+  });
+
+  it('allows PAUSED → ARMED (re-arm)', () => {
+    expect(canTransition(ReminderStatus.PAUSED, ReminderStatus.ARMED)).toBe(true);
+  });
+
+  it('allows PAUSED → COMPLETED (complete from paused)', () => {
+    expect(canTransition(ReminderStatus.PAUSED, ReminderStatus.COMPLETED)).toBe(true);
+  });
+
+  it('allows PAUSED → CANCELLED (cancel from paused)', () => {
+    expect(canTransition(ReminderStatus.PAUSED, ReminderStatus.CANCELLED)).toBe(true);
   });
 
   it('blocks TRIGGERED → DRAFT (must complete or cancel)', () => {

@@ -10,6 +10,7 @@ import { Alert, Image, View, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useReminderStore } from '../stores/reminderStore';
 import type { RootStackParamList, TabParamList } from './navigationTypes';
+import { ReminderStatus } from '../models/ReminderStatus';
 
 // Import all screens
 import { OnboardingScreen } from '../ui/OnboardingScreen';
@@ -32,12 +33,22 @@ const HomeScreenContainer = (_props: any) => {
     () => reminders.filter((r) => r.status === 'ARMED' || r.status === 'WAITING_FOR_EXIT'),
     [reminders],
   );
+  const inactiveReminders = React.useMemo(
+    () => reminders.filter((r) => r.status === 'PAUSED'),
+    [reminders],
+  );
+  const transitionStatus = useReminderStore((state) => state.transitionStatus);
   return (
     <HomeScreen
       onNavigateCreate={() => navigation.navigate('CreateReminder' as never)}
       onNavigateList={() => navigation.navigate('ReminderList' as never)}
       onNavigateDetail={(reminderId: string) => navigation.navigate('ReminderDetail' as never, { reminderId })}
+      onRemind={(reminderId: string) => {
+        console.log('[HomeScreenContainer] Re-arming reminder:', reminderId);
+        transitionStatus(reminderId, ReminderStatus.ARMED);
+      }}
       activeReminders={activeReminders}
+      inactiveReminders={inactiveReminders}
       totalCount={reminders.length}
     />
   );
@@ -95,13 +106,8 @@ const CreateReminderContainer = () => {
     <CreateReminderScreen
       reminderId={reminderId}
       onSaved={() => {
-        if (reminderId) {
-          // Edit mode: navigate back to detail screen (shows updated values)
-          navigation.navigate('ReminderDetail' as never, { reminderId });
-        } else {
-          // Create mode: go back to previous screen (home/list)
-          navigation.goBack();
-        }
+        // Both create and edit modes: go back to previous screen (home/list)
+        navigation.goBack();
       }}
       onCancel={() => navigation.goBack()}
     />
@@ -123,13 +129,22 @@ const ReminderDetailContainer = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const reminderId = (route.params as { reminderId?: string } | undefined)?.reminderId ?? null;
-  const state = useReminderStore.getState();
-  const reminder = reminderId ? (state.getById(reminderId) ?? null) : null;
+  const reminder = useReminderStore((state) =>
+    reminderId ? (state.getById(reminderId) ?? null) : null,
+  );
+  const transitionStatus = useReminderStore((state) => state.transitionStatus);
   return (
     <ReminderDetailScreen
       onNavigateEdit={() => navigation.navigate('CreateReminder' as never, { reminderId: reminder?.id ?? null })}
       onNavigateBack={() => navigation.goBack()}
       onDelete={() => {}}
+      onToggleStatus={(id, newStatus) => {
+        transitionStatus(id, newStatus).then((updated) => {
+          if (updated) {
+            console.log('[ReminderDetail] Status toggled:', updated.status);
+          }
+        });
+      }}
       reminder={reminder}
     />
   );

@@ -2,10 +2,11 @@
  * State machine for reminder lifecycle transitions.
  *
  * Implements spec §3.4 transition table exactly:
- *   DRAFT → ARMED, WAITING_FOR_EXIT, COMPLETED, CANCELLED
- *   WAITING_FOR_EXIT → ARMED (on exit), CANCELLED
- *   ARMED → TRIGGERED (on entry), COMPLETED, CANCELLED
+ *   DRAFT → ARMED, WAITING_FOR_EXIT, COMPLETED, CANCELLED, PAUSED
+ *   WAITING_FOR_EXIT → ARMED (on exit), CANCELLED, PAUSED
+ *   ARMED → TRIGGERED (on entry), COMPLETED, CANCELLED, PAUSED
  *   TRIGGERED → COMPLETED (manual)
+ *   PAUSED → ARMED (re-arm), COMPLETED, CANCELLED
  *   COMPLETED → (terminal)
  *   CANCELLED → (terminal)
  */
@@ -19,18 +20,26 @@ export const validTransitions: Record<ReminderStatus, ReminderStatus[]> = {
     ReminderStatus.WAITING_FOR_EXIT,
     ReminderStatus.COMPLETED,
     ReminderStatus.CANCELLED,
+    ReminderStatus.PAUSED,
   ],
   [ReminderStatus.WAITING_FOR_EXIT]: [
     ReminderStatus.ARMED,
     ReminderStatus.CANCELLED,
+    ReminderStatus.PAUSED,
   ],
   [ReminderStatus.ARMED]: [
     ReminderStatus.TRIGGERED,
     ReminderStatus.COMPLETED,
     ReminderStatus.CANCELLED,
+    ReminderStatus.PAUSED,
   ],
   [ReminderStatus.TRIGGERED]: [
     ReminderStatus.COMPLETED,
+  ],
+  [ReminderStatus.PAUSED]: [
+    ReminderStatus.ARMED,
+    ReminderStatus.COMPLETED,
+    ReminderStatus.CANCELLED,
   ],
   [ReminderStatus.COMPLETED]: [],
   [ReminderStatus.CANCELLED]: [],

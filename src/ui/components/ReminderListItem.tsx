@@ -37,6 +37,7 @@ function statusToBadge(status: ReminderStatus): import('../../components/Badge')
     case 'COMPLETED': return 'completed';
     case 'DRAFT': return 'draft';
     case 'CANCELLED': return 'cancelled';
+    case 'PAUSED': return 'paused';
   }
   return 'draft';
 }

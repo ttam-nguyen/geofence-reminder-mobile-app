@@ -16,7 +16,8 @@ export type BadgeStatus =
   | 'completed'
   | 'waiting_for_exit'
   | 'draft'
-  | 'cancelled';
+  | 'cancelled'
+  | 'paused';
 
 export interface BadgeProps {
   status: BadgeStatus;
@@ -31,6 +32,7 @@ const statusColors: Record<BadgeStatus, string> = {
   waiting_for_exit: '#F6AD55',
   draft: '#9CA3AF',
   cancelled: '#6B7280',
+  paused: '#A78BFA',
 };
 
 export const Badge: React.FC<BadgeProps> = ({ status, children, style }) => {
@@ -57,4 +59,4 @@ const styles = StyleSheet.create({
 });
 
 // Re-export for test modules
-export const BadgeStatusValues = ['armed', 'triggered', 'completed', 'waiting_for_exit', 'draft', 'cancelled'] as const;
+export const BadgeStatusValues = ['armed', 'triggered', 'completed', 'waiting_for_exit', 'draft', 'cancelled', 'paused'] as const;
