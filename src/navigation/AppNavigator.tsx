@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { NavigationContainer, useNavigation, useRoute } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Alert, Image, View, StyleSheet } from 'react-native';
@@ -36,6 +36,7 @@ const HomeScreenContainer = (_props: any) => {
     <HomeScreen
       onNavigateCreate={() => navigation.navigate('CreateReminder' as never)}
       onNavigateList={() => navigation.navigate('ReminderList' as never)}
+      onNavigateDetail={(reminderId: string) => navigation.navigate('ReminderDetail' as never, { reminderId })}
       activeReminders={activeReminders}
       totalCount={reminders.length}
     />
@@ -86,12 +87,22 @@ const OnboardingContainer = (_props: any) => {
   return <OnboardingScreen onComplete={handleComplete} />;
 };
 
-const CreateReminderContainer = (_props: any) => {
+const CreateReminderContainer = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const reminderId = (route.params as { reminderId?: string } | undefined)?.reminderId ?? null;
   return (
     <CreateReminderScreen
-      reminderId={null}
-      onSaved={() => navigation.goBack()}
+      reminderId={reminderId}
+      onSaved={() => {
+        if (reminderId) {
+          // Edit mode: navigate back to detail screen (shows updated values)
+          navigation.navigate('ReminderDetail' as never, { reminderId });
+        } else {
+          // Create mode: go back to previous screen (home/list)
+          navigation.goBack();
+        }
+      }}
       onCancel={() => navigation.goBack()}
     />
   );
@@ -108,14 +119,18 @@ const ReminderListContainer = (_props: any) => {
   );
 };
 
-const ReminderDetailContainer = (_props: any) => {
+const ReminderDetailContainer = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const reminderId = (route.params as { reminderId?: string } | undefined)?.reminderId ?? null;
+  const state = useReminderStore.getState();
+  const reminder = reminderId ? (state.getById(reminderId) ?? null) : null;
   return (
     <ReminderDetailScreen
-      onNavigateEdit={() => navigation.navigate('CreateReminder' as never)}
+      onNavigateEdit={() => navigation.navigate('CreateReminder' as never, { reminderId: reminder?.id ?? null })}
       onNavigateBack={() => navigation.goBack()}
       onDelete={() => {}}
-      reminder={null}
+      reminder={reminder}
     />
   );
 };

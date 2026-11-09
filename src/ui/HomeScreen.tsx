@@ -14,6 +14,8 @@ export interface HomeScreenProps {
   onNavigateCreate: () => void;
   /** Navigate to full reminder list */
   onNavigateList: () => void;
+  /** Navigate to detail screen for a specific reminder */
+  onNavigateDetail: (reminderId: string) => void;
   /** Active reminders (ARMED + WAITING_FOR_EXIT) */
   activeReminders: Array<{ id: string; title: string; locationName: string | null; radiusMeters: number; status: ReminderStatus }>;
   /** Total reminder count */
@@ -23,6 +25,7 @@ export interface HomeScreenProps {
 export function HomeScreen({
   onNavigateCreate,
   onNavigateList,
+  onNavigateDetail,
   activeReminders,
   totalCount,
 }: HomeScreenProps) {
@@ -75,7 +78,7 @@ export function HomeScreen({
                 radiusMeters={reminder.radiusMeters}
                 status={reminder.status}
                 isActive
-                onPress={onNavigateList}
+                onPress={() => onNavigateDetail(reminder.id)}
               />
             ))}
             {activeReminders.length > 5 && (

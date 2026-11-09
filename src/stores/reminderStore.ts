@@ -49,6 +49,9 @@ export interface ReminderState {
   /** Gets reminders by status. */
   getByStatus: (status: ReminderStatus) => Promise<Reminder[]>;
 
+  /** Gets a single reminder by ID (read-only selector). */
+  getById: (id: string) => Reminder | undefined;
+
   /** Clears the error state. */
   clearError: () => void;
 }
@@ -243,5 +246,9 @@ export const useReminderStore = create<ReminderState>((set, get) => ({
       set({ error: message, loading: false });
       return [];
     }
+  },
+
+  getById: (id) => {
+    return get().reminders.find((r) => r.id === id);
   },
 }));

@@ -37,9 +37,11 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
   const { theme } = useTheme();
   const { colors } = theme;
 
-  // Store for creating reminders
-  const { createReminder: storeCreate, loading, error, clearError } = useReminderStore((s) => ({
+  // Store for creating and updating reminders
+  const { createReminder: storeCreate, updateReminder: storeUpdate, getById, loading, error, clearError } = useReminderStore((s) => ({
     createReminder: s.createReminder,
+    updateReminder: s.updateReminder,
+    getById: s.getById,
     loading: s.loading,
     error: s.error,
     clearError: s.clearError,
@@ -47,6 +49,30 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
 
   // Current location hook (GPS)
   const { location: currentLocation, loading: gpsLoading } = useCurrentLocation();
+
+  // Load existing reminder data in edit mode
+  React.useEffect(() => {
+    if (!reminderId) return;
+    const existing = getById(reminderId);
+    if (!existing) {
+      console.log('[CreateReminder] Reminder not found for edit:', reminderId);
+      return;
+    }
+    console.log('[CreateReminder] Loading existing reminder for edit:', existing.title);
+    setTitle(existing.title);
+    setDescription(existing.description || '');
+    setRadiusMeters(existing.radiusMeters);
+
+    // Reconstruct TargetLocation from reminder fields
+    const loc: TargetLocation = {
+      latitude: existing.latitude,
+      longitude: existing.longitude,
+      locationName: existing.locationName || undefined,
+      source: (existing.locationSource as LocationSource) || LocationSource.CURRENT_GPS,
+      timestamp: Date.now(),
+    };
+    setSelectedLocation(loc);
+  }, [reminderId, getById]);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -149,28 +175,45 @@ export function CreateReminderScreen({ reminderId, onSaved, onCancel }: CreateRe
     if (!isValid) return;
 
     try {
-      // Determine initial status based on user position relative to target
-      // For MVP: default to ARMED (user is outside target) unless explicitly inside
-      const status = ReminderStatus.ARMED;
+      if (reminderId) {
+        // Edit mode: update existing reminder
+        await storeUpdate(reminderId, {
+          title: title.trim(),
+          description: description.trim() || null,
+          latitude: selectedLocation!.latitude,
+          longitude: selectedLocation!.longitude,
+          locationName: selectedLocation?.locationName || null,
+          radiusMeters,
+          locationSource: selectedLocation!.source,
+          notificationSoundEnabled,
+          notificationVibrationEnabled,
+        });
+        Alert.alert('Saved', 'Reminder updated successfully.', [
+          { text: 'OK', onPress: onSaved },
+        ]);
+      } else {
+        // Create mode: create new reminder
+        const status = ReminderStatus.ARMED;
 
-      await storeCreate({
-        title: title.trim(),
-        description: description.trim() || null,
-        latitude: selectedLocation!.latitude,
-        longitude: selectedLocation!.longitude,
-        locationName: selectedLocation?.locationName || null,
-        radiusMeters,
-        locationSource: selectedLocation!.source,
-        status,
-        triggeredAt: null,
-        completedAt: null,
-        notificationSoundEnabled,
-        notificationVibrationEnabled,
-      });
+        await storeCreate({
+          title: title.trim(),
+          description: description.trim() || null,
+          latitude: selectedLocation!.latitude,
+          longitude: selectedLocation!.longitude,
+          locationName: selectedLocation?.locationName || null,
+          radiusMeters,
+          locationSource: selectedLocation!.source,
+          status,
+          triggeredAt: null,
+          completedAt: null,
+          notificationSoundEnabled,
+          notificationVibrationEnabled,
+        });
 
-      Alert.alert('Saved', 'Reminder created successfully.', [
-        { text: 'OK', onPress: onSaved },
-      ]);
+        Alert.alert('Saved', 'Reminder created successfully.', [
+          { text: 'OK', onPress: onSaved },
+        ]);
+      }
     } catch (_err) {
       // Error already shown by the store
     }

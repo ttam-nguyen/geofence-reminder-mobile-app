@@ -1,0 +1,83 @@
+appId: com.gpsreminder
+---
+# End-to-end test: Create → View Detail → Edit → Verify persistence
+# Tests the full edit lifecycle: create a reminder, view its details,
+# edit it, save, and verify the updated values appear in the detail screen.
+
+- launchApp:
+    clearState: true
+
+# === Skip onboarding ===
+- tapOn: "Next"
+- tapOn: "Next"
+- tapOn: "Get Started"
+- assertVisible: "Reminders"
+
+# === Create a reminder from HomeScreen ===
+- tapOn: "+ Add Reminder"
+- assertVisible: "New Reminder"
+
+# Set location via GPS stub
+- tapOn: "Current GPS"
+- tapOn: "Use Current Location"
+- assertVisible: "Selected"
+
+# Enter title and description
+- tapOn: "What do you need to remember?"
+- inputText: "Grocery Run"
+- pressKey: Enter
+
+- tapOn: "Optional details (up to 500 characters)"
+- inputText: "Buy milk and eggs"
+- pressKey: Enter
+
+# Save the reminder (navigates directly to detail screen, no Alert)
+- scroll
+- tapOn: "Save Reminder"
+
+# Verify detail screen shows the created reminder
+- assertVisible: "Grocery Run"
+- assertVisible: "Buy milk and eggs"
+
+# === Edit the reminder ===
+- tapOn: "Edit"
+- assertVisible: "Edit Reminder"
+
+# Verify pre-populated values from the original reminder
+- assertVisible: "Grocery Run"
+- assertVisible: "Buy milk and eggs"
+
+# Make changes to title, description, and radius
+- tapOn: "What do you need to remember?"
+- inputText: "Weekly Grocery Run"
+
+- tapOn: "Optional details (up to 500 characters)"
+- inputText: "Milk, eggs, bread, and butter"
+- pressKey: Enter
+
+# Change radius to 200m (tap the 200m preset button)
+- tapOn: "200m"
+
+# Save the edited reminder (navigates directly to detail screen)
+- scroll
+- tapOn: "Save Reminder"
+
+# === Verify changes persisted in detail screen ===
+# Should be redirected back to detail screen after save
+- assertVisible: "Weekly Grocery Run"
+- assertVisible: "Milk, eggs, bread, and butter"
+
+# Verify radius changed (200m should be visible)
+- assertVisible: "±200m"
+
+# Edit again to double-check persistence
+- tapOn: "Edit"
+- assertVisible: "Edit Reminder"
+
+# Verify the edited values are still there (not reverted)
+- assertVisible: "Weekly Grocery Run"
+- assertVisible: "Milk, eggs, bread, and butter"
+
+# Go back to home list
+- tapOn: "Back"
+- assertVisible: "Weekly Grocery Run"
