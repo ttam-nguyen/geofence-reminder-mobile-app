@@ -133,11 +133,22 @@ const ReminderDetailContainer = () => {
     reminderId ? (state.getById(reminderId) ?? null) : null,
   );
   const transitionStatus = useReminderStore((state) => state.transitionStatus);
+  const deleteReminder = useReminderStore((state) => state.deleteReminder);
   return (
     <ReminderDetailScreen
       onNavigateEdit={() => navigation.navigate('CreateReminder' as never, { reminderId: reminder?.id ?? null })}
       onNavigateBack={() => navigation.goBack()}
-      onDelete={() => {}}
+      onDelete={(id) => {
+        console.log('[ReminderDetail] Deleting reminder:', id);
+        deleteReminder(id).then((deleted) => {
+          if (deleted) {
+            console.log('[ReminderDetail] Reminder deleted successfully');
+            navigation.goBack();
+          } else {
+            console.warn('[ReminderDetail] Reminder not found, could not delete');
+          }
+        });
+      }}
       onToggleStatus={(id, newStatus) => {
         transitionStatus(id, newStatus).then((updated) => {
           if (updated) {
