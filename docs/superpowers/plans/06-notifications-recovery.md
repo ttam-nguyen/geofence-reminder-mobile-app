@@ -182,8 +182,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({..
   - Test: `src/__tests__/services/RecoveryService.test.ts` — app start re-registers ARMED/WAITING_FOR_EXIT reminders, skips TRIGGERED/COMPLETED/CANCELLED
   - Expected: Recovery re-registers correct reminders
 
-- [ ] **Step 6.5:** Implement notification store
-  - Create `src/stores/notificationStore.ts` — Zustand store for notification state
+- [ ] **Step 6.5:** Implement notification store (exists — stubbed)
+  - `src/stores/notificationStore.ts` exists with stub methods (no-op implementation)
+  - **TODO:** Replace with real notification permission handling via native module
+  - **TODO:** Wire `scheduleNotification()` to call `NotificationService.scheduleReminderNotification()` when reminder transitions to TRIGGERED
   - Test: permission status updates, delivery records stored and retrieved
   - Expected: Store manages notification state correctly
 
@@ -244,3 +246,22 @@ npx react-native run-android --variant=debug         # or physical device
 ```bash
 git diff v6-notifications..HEAD -- src/native/NotificationModule.ts ios/GPSReminder/Notification* android/.../NotificationModule.k src/services/NotificationService.ts src/services/RecoveryService.ts src/stores/notificationStore.ts src/ui/PermissionStatusView.tsx
 ```
+
+## Summary for Handoff
+
+**What was implemented (stubbed, not real):**
+- `NotificationModule.ts` — TypeScript interface exists but no native bridge implementation
+- `NotificationService.ts` — Stub methods (scheduleReminderNotification returns mock ID, playAlertSound/vibrateDevice are no-ops)
+- `RecoveryService.ts` — Stub methods (recoverOnAppStart/Boot are no-ops, restorePendingNotifications does nothing)
+- `notificationStore.ts` — Zustand store with stub methods (checkPermission returns 'granted', scheduleNotification is no-op)
+- `PermissionStatusView.tsx` — Stub component showing "Notifications enabled (stubbed)" text
+- All stub methods compile and don't crash, but do nothing real
+
+**What still needs to be done (next plans):**
+- **Plan 6 extension:** Implement real iOS native notification module (`UNUserNotificationCenter`)
+- **Plan 6 extension:** Implement real Android native notification module (`NotificationManager` + `Vibrator`)
+- **Plan 6 extension:** Wire JS notification service to native module (bridge TypeScript → Swift/Kotlin)
+- **Plan 6 extension:** Wire `scheduleReminderNotification()` into the geofence bridge (called when reminder transitions to TRIGGERED)
+- **Plan 6 extension:** Implement real recovery service (re-register eligible reminders on app start)
+- **Plan 6 extension:** Wire notification permission handling (request, check, handle denial)
+- **Plan 5 extension:** Fix geofence event bridge (native event → processor → state transition → notification) — PREREQUISITE for notifications to work

@@ -2,27 +2,29 @@
 
 ## Overview
 
-This directory contains 10 independently testable implementation plans for the GPS Reminder mobile application, built with React Native and TypeScript.
+This directory contains 10 independently testable implementation plans for the GPS Reminder mobile application, built with React Native and TypeScript. Each plan produces a verifiable commit at its own revision (e.g., `v0-scaffold`, `v1-design-system`).
+
+**Source of truth:** All requirements, constraints, and domain models are defined in `docs/spec.md`. Cross-reference this index with the spec for full details.
 
 ## Plan Index (Dependency-Ordered)
 
-| # | Plan File | Feature | Dependencies | Testable Outcome |
+| # | Plan File | Feature | Dependencies | Status |
 |---|---|---|---|---|
-| 0 | [00-project-setup.md](./00-project-setup.md) | Project Scaffolding & Verification Baseline | — | Build succeeds on iOS + Android |
-| 1 | [01-design-system.md](./01-design-system.md) | Design System — Frosted Future Tokens | 0 | Theme tokens, navigation shell, reusable components |
-| 2 | [02-reminder-domain.md](./02-reminder-domain.md) | Reminder Models, State Machine, Local Data | 0 | Models, state machine, SQLite repo, business-logic tests |
-| 3 | [03-native-geofencing-poc.md](./03-native-geofencing-poc.md) | Native Geofencing Proof of Concept | 0 | iOS + Android geofence registration, background events |
-| 4 | [04-geofence-orchestration.md](./04-geofence-orchestration.md) | Geofence Registration Manager | 2, 3 | Capacity policy, event processing, idempotency, restart recovery |
-| 5 | [05-location-selection-maps.md](./05-location-selection-maps.md) | Location Selection & Maps | 0 | Current GPS, map pin, search, offline cache |
-| 6 | [06-notifications-recovery.md](./06-notifications-recovery.md) | Notifications & App Lifecycle Recovery | 2, 3 | Local notifications, sound/vibration, restart recovery |
-| 7 | [07-core-ui-flows.md](./07-core-ui-flows.md) | Core UI Flows (All Screens) | 1, 2, 5, 6 | Onboarding, home, create, list, details, map, settings |
-| 8 | [08-advertising.md](./08-advertising.md) | Advertising Integration | 7 | Banner/list ads, rewarded ads, consent flow |
-| 9 | [09-paid-themes.md](./09-paid-themes.md) | Paid Theme Store (IAP) | 1, 7 | Theme catalog, previews, purchase/restore, entitlements |
-| 10 | [10-release-hardening.md](./10-release-hardening.md) | Release Hardening | All | Real-device test matrix, performance, store compliance |
+| 0 | [00-project-setup.md](./00-project-setup.md) | Project Scaffolding & Verification Baseline | — | ✅ Done (v0-scaffold) |
+| 1 | [01-design-system.md](./01-design-system.md) | Design System — Frosted Future Tokens | 0 | ✅ Done (v1-design-system) |
+| 2 | [02-reminder-domain.md](./02-reminder-domain.md) | Reminder Models, State Machine, Local Data | 0 | ✅ Done (v2-reminder-domain) |
+| 3 | [03-native-geofencing-poc.md](./03-native-geofencing-poc.md) | Native Geofencing Interfaces + POC | 0 | ✅ Done (v3-geofencing-poc) |
+| 4 | [04-geofence-orchestration.md](./04-geofence-orchestration.md) | Geofence Registration Manager | 2, 3 | ✅ Done (v4-geofence-orchestration) |
+| 5 | [05-location-selection-maps.md](./05-location-selection-maps.md) | Location Selection & Maps (stubbed) | 0 | ✅ Done (v5-location-selection) — stubbed, not real |
+| 6 | [06-notifications-recovery.md](./06-notifications-recovery.md) | Notifications & App Lifecycle Recovery | 2, 3 | ✅ Done (v6-notifications) — stubbed, not wired |
+| 7 | [07-core-ui-flows.md](./07-core-ui-flows.md) | Core UI Flows (All Screens) | 1, 2, 5, 6 | ✅ Done (v7-core-ui) — UI exists, services stubbed |
+| 8 | [08-advertising.md](./08-advertising.md) | Advertising Integration | 7 | ⏳ Not started |
+| 9 | [09-paid-themes.md](./09-paid-themes.md) | Paid Theme Store (IAP) | 1, 7 | ⏳ Not started |
+| 10 | [10-release-hardening.md](./10-release-hardening.md) | Release Hardening | All | ⏳ Not started |
 
 ## Execution Order
 
-**Critical path:** 0 → 3 (geofencing PoC) — validate native geofencing before UI investment.
+**Critical path:** 0 → 3 (geofencing POC) — validate native geofencing before UI investment.
 
 **Parallel tracks (no inter-dependencies):**
 - Track A: 0 → 1 → 7 (UI development)
@@ -30,43 +32,22 @@ This directory contains 10 independently testable implementation plans for the G
 - Track C: 0 → 3 → 6 (native geofencing + notifications)
 - Track D: 0 → 5 (location selection + maps)
 
-**Earliest vertical slice:** 0 → 2 → 3 → 4 → 6
-Result: Create reminder → geofence register → trigger → notify (no UI polish).
+**Next steps for meaningful device testing:**
+Fix the geofence bridge (Plans 3 + 6 integration), then add real map integration (extend Plan 5).
 
 ## Tech Stack Summary
 
-| Layer | Technology |
-|---|---|
-| Framework | React Native 0.74+ (TypeScript) |
-| State Management | Zustand v5 |
-| Navigation | React Navigation 6.x |
-| Storage | react-native-sqlite-storage v7 |
-| Maps | react-native-maps + Mapbox (MVP) |
-| Notifications | Custom native modules (Core Location + Android NotificationManager) |
-| Geofencing | Custom native modules (Core Location CLRegion + Android Geofencing API) |
-| Ads | react-native-google-mobile-ads (AdMob) |
-| IAP | react-native-iap v12.x |
-| Testing | Vitest + React Native Test Renderer |
-
-## Minimum Supported Versions
-
-- iOS 13.0+
-- Android API 29 (Android 10)
-
-## Geofencing Limits
-
-- iOS: 20 regions per app
-- Android: 500 geofences per app
+See `docs/spec.md` for full tech stack details.
 
 ## Plan Structure
 
 Each plan contains:
 - **Feature name** and **goal**
 - **Architecture** and **tech stack** choices
-- **Spec references** (which spec sections apply)
+- **Spec references** (cross-referenced to `docs/spec.md`)
 - **Global constraints** (what must be true)
 - **Review focus** (what to check during review)
-- **Files to create** (exact paths, single responsibility per file)
+- **Files created** (exact paths)
 - **Interfaces** (TypeScript definitions for all public APIs)
 - **Tasks** (checkbox steps, test-first approach)
 - **Verification commands** (exact commands with expected outcomes)

@@ -120,80 +120,71 @@ interface SettingsScreenProps {
 
 ## Tasks (Checkbox — Test-First)
 
-- [ ] **Step 7.1:** Implement onboarding screen
-  - Create `src/ui/OnboardingScreen.tsx` — 3 screens:
-    1. "GPS Reminder" concept explanation + visual
-    2. Why background location is required (with toggle to Settings)
-    3. Notification permissions explanation + request button
+- [ ] **Step 7.1:** Implement onboarding screen (stubbed — UI exists)
+  - `src/ui/OnboardingScreen.tsx` exists with stub content ("Coming soon — onboarding flow")
+  - **TODO:** Implement real 3-screen flow: (1) concept explanation, (2) background location need with toggle to Settings, (3) notification permissions explanation + request button
   - Test: renders all 3 screens, progresses forward/backward, calls `onComplete` on last screen
   - Expected: Onboarding flows correctly, skips if already completed (persisted flag)
 
-- [ ] **Step 7.2:** Implement home dashboard
-  - Create `src/ui/HomeScreen.tsx` — shows:
-    - Active reminder count (ARMED + WAITING_FOR_EXIT)
-    - Quick "Add Reminder" FAB (navigates to CreateReminder)
-    - Active reminders list preview (scrollable, navigates to full list)
-    - Bottom tab navigation (Home, Map, Settings)
+- [ ] **Step 7.2:** Implement home dashboard (stubbed — UI exists)
+  - `src/ui/HomeScreen.tsx` exists with stub content ("Coming soon — dashboard")
+  - **TODO:** Implement real dashboard: active reminder count, quick "Add Reminder" FAB, active reminders list preview, bottom tab navigation
   - Test: renders with active count, FAB navigates to create screen, list preview shows reminders
   - Expected: Dashboard renders correctly, navigation works
 
-- [ ] **Step 7.3:** Implement create reminder screen
-  - Create `src/ui/CreateReminderScreen.tsx` — full form:
-    - Title (required, validated)
-    - Description (optional)
-    - Location: 3 tabs (Current GPS, Map Pin, Search)
-    - Radius presets (100m, 200m, 500m, 1km) + custom input
-    - Notification preferences (sound, vibration toggles)
-    - Save button (disabled if title empty or location not set)
+- [ ] **Step 7.3:** Implement create reminder screen (stubbed — services stubbed)
+  - `src/ui/CreateReminderScreen.tsx` exists with form UI (title, description, 3 location tabs, radius presets)
+  - **TODO:** Wire real GPS via `useCurrentLocation()` hook (currently stubbed, returns SF coordinates)
+  - **TODO:** Wire real map pin via `useMapPin()` hook (currently stubbed, no real map)
+  - **TODO:** Wire real search via Nominatim API (currently stubbed, returns mock place)
+  - **TODO:** Wire save button to `reminderStore.createReminder()` (store exists but uses stub data)
   - Test: validates required fields, all 3 location methods accessible, radius presets selectable, saves reminder via store
   - Expected: Reminder created with correct status (WAITING_FOR_EXIT or ARMED based on inside/outside)
 
-- [ ] **Step 7.4:** Implement reminder list screen
-  - Create `src/ui/ReminderListScreen.tsx` — shows:
-    - Search bar (filter by title/location name)
-    - Filter tabs (All, Active, Completed, Cancelled)
-    - Reminder list items (title, place, radius, status badge)
-    - Edit (navigates to edit mode on CreateReminderScreen)
-    - Delete (with confirmation)
+- [ ] **Step 7.4:** Implement reminder list screen (stubbed — services stubbed)
+  - `src/ui/ReminderListScreen.tsx` exists with stub content ("Coming soon — reminder list")
+  - **TODO:** Wire to `reminderStore.getAllReminders()` (store exists, returns stub data)
+  - **TODO:** Implement search bar (filter by title/location name)
+  - **TODO:** Implement filter tabs (All, Active, Completed, Cancelled)
   - Test: search filters correctly, filter tabs switch view, edit/delete actions dispatch
   - Expected: List renders all reminders, search/filter works
 
-- [ ] **Step 7.5:** Implement reminder detail screen
-  - Create `src/ui/ReminderDetailScreen.tsx` — shows:
-    - Full reminder content (title, description)
-    - Target location on small map view
-    - Radius visualization
-    - Current state (status badge)
-    - Edit button (navigates to edit mode)
-    - Delete/Cancel button (with confirmation)
+- [ ] **Step 7.5:** Implement reminder detail screen (stubbed — services stubbed)
+  - `src/ui/ReminderDetailScreen.tsx` exists with stub content ("Coming soon — reminder details")
+  - **TODO:** Wire to `reminderStore.getReminderById()` (store exists, returns stub data)
+  - **TODO:** Implement inline map preview (uses stub MapView)
+  - **TODO:** Implement status badge, edit/delete buttons
   - Test: displays all fields, map shows target location, edit/delete work
   - Expected: Details screen shows complete reminder info
 
-- [ ] **Step 7.6:** Implement map screen
-  - Create `src/ui/MapScreen.tsx` — full interactive map:
-    - Current location dot (if permission granted)
-    - All reminder pins (color-coded by status)
-    - Radius circles for all reminders
-    - "Use Current Location" button
+- [ ] **Step 7.6:** Implement map screen (stubbed — services stubbed)
+  - `src/ui/MapScreen.tsx` exists with stub content ("Coming soon — map")
+  - **TODO:** Replace stub MapView with real `react-native-maps` integration (Life360-style fixed pin)
+  - **TODO:** Show current location dot, all reminder pins (color-coded by status), radius circles
+  - **TODO:** Implement "Use Current Location" button (calls `useCurrentLocation()`)
+  - **TODO:** Implement two-row layout: top 1/3 map preview (fitBounds), bottom 2/3 collapsible list grouped by SavedPlace
   - Test: renders map, shows current location when available, displays reminder pins and circles
   - Expected: Map screen fully functional
 
-- [ ] **Step 7.7:** Implement settings screen
-  - Create `src/ui/SettingsScreen.tsx` — sections:
-    - Notification preferences (enable/disable notifications, sound, vibration)
-    - Theme selection (placeholder: "Frosted Future" only for MVP)
-    - Privacy & permissions (location status, notification status, guidance links)
-    - App information (version, build number)
+- [ ] **Step 7.7:** Implement settings screen (stubbed — services stubbed)
+  - `src/ui/SettingsScreen.tsx` exists with stub content ("Coming soon — settings")
+  - **TODO:** Wire to `notificationStore` (store exists with stub methods)
+  - **TODO:** Implement notification preferences (enable/disable notifications, sound, vibration toggles)
+  - **TODO:** Implement privacy & permissions section (location status, notification status, guidance links)
+  - **TODO:** Implement app information (version, build number)
   - Test: renders all sections, toggles update store, privacy info displays correctly
   - Expected: Settings screen fully functional
 
-- [ ] **Step 7.8:** Implement helper components
-  - Create `src/ui/components/ReminderListItem.tsx`, `OfflineBanner.tsx`, `PermissionWarning.tsx`
+- [ ] **Step 7.8:** Implement helper components (stubbed)
+  - `src/ui/components/ReminderListItem.tsx` — stub component ("Coming soon")
+  - `src/ui/components/OfflineBanner.tsx` — stub component ("You are offline. Core features work, search unavailable.")
+  - `src/ui/components/PermissionWarning.tsx` — stub component ("Location access is required for geofences. Enable in Settings.")
+  - **TODO:** Implement real components using design tokens from Plan 1
   - Test: components render with correct theme tokens, offline banner shows when no network
   - Expected: Components reusable across screens
 
 - [ ] **Step 7.9:** Integrate all screens into navigation
-  - Update `src/navigation/AppNavigator.tsx` with full route definitions
+  - Update `src/navigation/AppNavigator.tsx` with full route definitions (stubbed)
   - Test: navigation between all screens works, deep linking to reminders works
   - Expected: Full navigation flow functional
 
@@ -231,3 +222,29 @@ npx react-native run-android --variant=debug         # or physical device
 ```bash
 git diff v7-core-ui..HEAD -- src/ui/ src/ui/components/ src/navigation/AppNavigator.tsx
 ```
+
+## Summary for Handoff
+
+**What was implemented (stubbed, not real):**
+- **All 7 screens exist** as placeholder components with stub content ("Coming soon — ...")
+- `OnboardingScreen.tsx` — Stub: "Coming soon — onboarding flow" (3 screen placeholders)
+- `HomeScreen.tsx` — Stub: "Coming soon — dashboard" (active count, FAB, list preview)
+- `CreateReminderScreen.tsx` — Stub: form UI exists (title, description, 3 location tabs, radius presets) but all handlers show Alert dialogs with stub data (SF coordinates)
+- `ReminderListScreen.tsx` — Stub: "Coming soon — reminder list" (no data wired)
+- `ReminderDetailScreen.tsx` — Stub: "Coming soon — reminder details" (no data wired)
+- `MapScreen.tsx` — Stub: "Coming soon — map" (no real map, no pins, no circles)
+- `SettingsScreen.tsx` — Stub: "Coming soon — settings" (no real preferences)
+- **Helper components:** `ReminderListItem.tsx`, `OfflineBanner.tsx`, `PermissionWarning.tsx` — all stub ("Coming soon")
+- **Navigation:** `AppNavigator.tsx` — Stubbed with placeholder routes (no real screen connections)
+- **Stores:** `reminderStore.ts` and `notificationStore.ts` — exist with stub methods (return mock data, no-ops)
+- **Design system:** `src/theme/` — Working (tokens + ThemeProvider), all screens use design tokens
+
+**What still needs to be done (next plans):**
+- **Plan 7 extension:** Wire all screens to real Zustand stores (reminderStore, notificationStore)
+- **Plan 7 extension:** Wire location services (GPS, map, search) into CreateReminderScreen
+- **Plan 7 extension:** Implement real MapScreen with `react-native-maps` (Life360-style fixed pin)
+- **Plan 7 extension:** Implement two-row MapScreen layout (top map preview + bottom collapsible list)
+- **Plan 7 extension:** Wire all screens to real state machine (useGeofencing, GeofenceEventProcessor)
+- **Plan 7 extension:** Implement real onboarding flow (3 screens with concept, location need, notification permissions)
+- **Plan 7 extension:** Wire notification permission handling (notificationStore → native module)
+- **PREREQUISITE:** Fix geofence bridge (Plan 3 + Plan 6 integration) before any UI can test real notifications

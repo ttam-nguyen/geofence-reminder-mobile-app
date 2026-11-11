@@ -50,3 +50,7 @@ coverage/
 
 # Design kits (kept locally, not tracked)
 glass_layered_ui_concept_kit/
+
+# AI handoff notes (not for production)
+HANDOFF.md
+HANDOFF.md

@@ -17,7 +17,7 @@ Implement reminder domain models, lifecycle state machine, SQLite repository, an
 |---|---|
 | Models | Pure TypeScript (no framework deps) |
 | State Machine | Manual FSM with transition table |
-| Storage | react-native-sqlite-storage v7 |
+| Storage | react-native-sqlite-storage ^6.0.1 |
 | State Management | Zustand store (read from repository) |
 | Testing | Vitest + in-memory SQLite for tests |
 

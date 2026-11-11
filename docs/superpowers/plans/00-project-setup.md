@@ -18,9 +18,9 @@ Establish a working React Native project skeleton with TypeScript, testing, lint
 |---|---|---|
 | Framework | React Native 0.74+ | Cross-platform, iOS 13+/Android 29+ support |
 | Language | TypeScript 5.x strict | Type safety, spec §9 data models |
-| State | Zustand v5 | Lightweight, no boilerplate, TypeScript-first |
+| State | Zustand ^4.5.2 | Lightweight, no boilerplate, TypeScript-first (v5 has Hermes compatibility issues) |
 | Navigation | React Navigation 6.x | Standard RN navigation, deep linking support |
-| Storage | react-native-sqlite-storage v7 | Local SQLite, source of truth per spec §9 |
+| Storage | react-native-sqlite-storage ^6.0.1 | Local SQLite, source of truth per spec (RN 0.74 compatible) |
 | Testing | Vitest + React Native Test Renderer | Fast unit tests, spec §10 |
 | Linting | ESLint + TypeScript ESLint | Code quality baseline |
 | Formatting | Prettier | Consistent style |
