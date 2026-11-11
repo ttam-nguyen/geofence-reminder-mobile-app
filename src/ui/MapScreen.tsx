@@ -14,9 +14,11 @@ export interface MapScreenProps {
   onNavigateCreate: () => void;
   /** All reminders to display on the map */
   reminders: Array<{ id: string; title: string; latitude: number; longitude: number; radiusMeters: number; status: ReminderStatus }>;
+  /** Current GPS location (from container via useCurrentLocation) */
+  currentLocation?: { latitude: number; longitude: number } | null;
 }
 
-export function MapScreen({ onNavigateCreate, reminders }: MapScreenProps) {
+export function MapScreen({ onNavigateCreate, reminders, currentLocation }: MapScreenProps) {
   const { theme } = useTheme();
   const { colors } = theme;
 
@@ -48,7 +50,7 @@ export function MapScreen({ onNavigateCreate, reminders }: MapScreenProps) {
 
       {/* Map */}
       <MapView
-        currentLocation={null}
+        currentLocation={currentLocation}
         reminderPins={reminderPins}
         radiusCircle={lastReminder ? { latitude: lastReminder.latitude, longitude: lastReminder.longitude, radiusMeters: lastReminder.radiusMeters } : undefined}
       />

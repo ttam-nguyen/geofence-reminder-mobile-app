@@ -29,6 +29,8 @@ class MainApplication : Application(), ReactApplication {
       packages.add(SafeAreaContextPackage())
       packages.add(RNScreensPackage())
       packages.add(SQLitePluginPackage())
+      packages.add(GeofencingPackage())
+      packages.add(NotificationPackage())
       return packages
     }
 

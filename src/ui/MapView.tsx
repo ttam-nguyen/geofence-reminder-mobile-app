@@ -7,6 +7,7 @@
 
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import MapViewComponent, { Marker, Circle } from 'react-native-maps';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface MapViewProps {
@@ -29,6 +30,7 @@ export function MapView({
   reminderPins = [],
   radiusCircle,
   isOffline = false,
+  onMapTap,
   children,
 }: MapViewProps) {
   const theme = useTheme();
@@ -41,10 +43,80 @@ export function MapView({
     return count;
   }, [currentLocation, reminderPins, radiusCircle]);
 
+  // Default region: center of all reminders, or a default city if none exist
+  const initialRegion = useMemo(() => {
+    if (reminderPins.length > 0) {
+      const avgLat = reminderPins.reduce((sum, p) => sum + p.latitude, 0) / reminderPins.length;
+      const avgLon = reminderPins.reduce((sum, p) => sum + p.longitude, 0) / reminderPins.length;
+      return {
+        latitude: avgLat,
+        longitude: avgLon,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+    }
+    // Default: San Francisco
+    return {
+      latitude: 37.7749,
+      longitude: -122.4194,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
+  }, [reminderPins]);
+
   return (
     <View style={styles.container}>
-      {/* Actual map component goes here (react-native-maps) */}
-      {children}
+      <MapViewComponent
+        style={styles.map}
+        initialRegion={initialRegion}
+        showsUserLocation={false}
+        onMapReady={() => {}}
+        onPress={(event: any) => {
+          onMapTap?.({ latitude: event.coordinate.latitude, longitude: event.coordinate.longitude });
+        }}
+      >
+        {/* Current location marker (blue dot) */}
+        {currentLocation && (
+          <Marker
+            key="current-location"
+            coordinate={{
+              latitude: currentLocation.latitude,
+              longitude: currentLocation.longitude,
+            }}
+            title="Your Location"
+            pinColor={theme.colors.primary}
+          />
+        )}
+
+        {/* Reminder pins */}
+        {reminderPins.map((pin) => (
+          <Marker
+            key={pin.id}
+            coordinate={{
+              latitude: pin.latitude,
+              longitude: pin.longitude,
+            }}
+            title={pin.id}
+            pinColor="#F52232"
+          />
+        ))}
+
+        {/* Radius circle overlay */}
+        {radiusCircle && (
+          <Circle
+            center={{
+              latitude: radiusCircle.latitude,
+              longitude: radiusCircle.longitude,
+            }}
+            radius={radiusCircle.radiusMeters}
+            strokeColor={theme.colors.primary}
+            fillColor="rgba(0, 0, 0, 0.1)"
+          />
+        )}
+
+        {/* Pass-through children (custom map overlays, etc.) */}
+        {children}
+      </MapViewComponent>
 
       {/* Offline indicator */}
       {isOffline && (
@@ -66,6 +138,10 @@ export function MapView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  map: {
+    width: '100%',
+    height: '100%',
   },
   offlineBadge: {
     position: 'absolute',

@@ -9,6 +9,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Alert, Image, View, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useReminderStore } from '../stores/reminderStore';
+import { useCurrentLocation } from '../hooks/useCurrentLocation';
 import type { RootStackParamList, TabParamList } from './navigationTypes';
 import { ReminderStatus } from '../models/ReminderStatus';
 
@@ -29,6 +30,10 @@ const Tab = createBottomTabNavigator<TabParamList>();
 const HomeScreenContainer = (_props: any) => {
   const navigation = useNavigation<any>();
   const reminders = useReminderStore((state) => state.reminders);
+  const loadAll = useReminderStore((state) => state.loadAll);
+  React.useEffect(() => {
+    loadAll();
+  }, [loadAll]);
   const activeReminders = React.useMemo(
     () => reminders.filter((r) => r.status === 'ARMED' || r.status === 'WAITING_FOR_EXIT'),
     [reminders],
@@ -56,10 +61,19 @@ const HomeScreenContainer = (_props: any) => {
 
 const MapScreenContainer = (_props: any) => {
   const navigation = useNavigation<any>();
+  const reminders = useReminderStore((state) => state.reminders);
+  const { location } = useCurrentLocation();
+
+  const currentLocation = React.useMemo(() => {
+    if (!location) return null;
+    return { latitude: location.latitude, longitude: location.longitude };
+  }, [location]);
+
   return (
     <MapScreen
       onNavigateCreate={() => navigation.navigate('CreateReminder' as never)}
-      reminders={[]}
+      reminders={reminders}
+      currentLocation={currentLocation}
     />
   );
 };
@@ -116,11 +130,16 @@ const CreateReminderContainer = () => {
 
 const ReminderListContainer = (_props: any) => {
   const navigation = useNavigation<any>();
+  const reminders = useReminderStore((state) => state.reminders);
+  const loadAll = useReminderStore((state) => state.loadAll);
+  React.useEffect(() => {
+    loadAll();
+  }, [loadAll]);
   return (
     <ReminderListScreen
       onNavigateCreate={() => navigation.navigate('CreateReminder' as never)}
       onNavigateDetail={(id: string) => navigation.navigate('ReminderDetail' as never, { reminderId: id })}
-      reminders={[]}
+      reminders={reminders}
     />
   );
 };

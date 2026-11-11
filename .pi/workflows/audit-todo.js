@@ -1,0 +1,6 @@
+export const meta = {
+  name: 'audit-todo',
+  description: 'Audit codebase state and produce prioritized TODO list',
+};
+
+const result = await agent("Audit the geofence-reminder-mobile-app codebase at /Users/tam/Git/geofence-reminder-mobile-app to produce a prioritized TODO list. Read these key files: src/services/StateMachine.ts, src/hooks/useGeofencing.ts, src/native/GeofenceEventProcessor.ts, src/services/RegistrationManager.ts, src/ui/MapScreen.tsx, src/hooks/useCurrentLocation.ts, src/services/SearchService.ts, src/ui/CreateReminderLocationPicker.tsx, package.json. Also check native-modules/ directory for any real implementations, src/ui/CreateReminderScreen.tsx (reminder creation flow), src/data/SQLiteAdapter.ts and ReminderRepositoryImpl.ts (persistence layer). Produce a prioritized TODO list organized by: 1. CRITICAL - app is broken without these (geofence bridge, real location services) 2. HIGH - core functionality that makes the app usable (map interaction, search, save locations) 3. MEDIUM - enhances UX but not blocking (real GPS, background monitoring) 4. LOW - polish (ads, themes, release hardening). For each TODO item include: file path, current status (stubbed/working/broken), what needs to be done, and any dependencies on other items.", "description": "Audit codebase for prioritized TODOs", "subagent_type": "Explore"}

@@ -9,13 +9,19 @@ import React, { useEffect } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AppNavigator } from './navigation/AppNavigator';
 import { openDatabase } from './data/SQLiteAdapter';
+import { startGeofenceEventService } from './services/GeofenceEventService';
 
 export default function App() {
   useEffect(() => {
     // Initialize SQLite database on app startup
-    openDatabase().catch((err) => {
-      console.error('[App] Failed to initialize database:', err);
-    });
+    openDatabase()
+      .then(() => {
+        // Start the geofence event bridge after DB is ready
+        startGeofenceEventService();
+      })
+      .catch((err) => {
+        console.error('[App] Failed to initialize database:', err);
+      });
   }, []);
 
   return (

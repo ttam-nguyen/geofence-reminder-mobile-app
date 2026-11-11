@@ -1,0 +1,23 @@
+<!--
+  Geofence Reminder — iOS Info.plist Usage Description Keys
+
+  Add these entries to ios/GeofenceReminder/Info.plist inside the <dict> tag:
+
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>We need your location to create geofence reminders. Your location is only used when the app is open and for monitoring nearby areas.</string>
+
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+  <string>We need your location to monitor geofence boundaries even when the app is in the background. You will be notified when you enter or leave a saved area.</string>
+
+  For iOS 13+, "Always" authorization requires the following key in Info.plist:
+  <key>NSLocationAlwaysUsageDescription</key>
+  <string>We need your location to monitor geofence boundaries in the background. You will receive notifications when entering saved areas.</string>
+
+  Note: iOS requires both "When In Use" and "Always" usage descriptions.
+  The app must call CLLocationManager.requestAlwaysAuthorization() to trigger
+  the "Always" permission prompt. Without this, background monitoring will fail.
+
+  Also ensure these capabilities are enabled in Xcode:
+  - Background Modes: Location updates
+  - Capabilities: Background fetch (optional, for background notification delivery)
+-->
