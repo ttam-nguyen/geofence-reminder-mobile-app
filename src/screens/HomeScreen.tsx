@@ -6,10 +6,9 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  Platform,
-  SafeAreaView,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { mockReminders } from '../data/mockReminders';
 import { ReminderCard } from '../components/ReminderCard';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
