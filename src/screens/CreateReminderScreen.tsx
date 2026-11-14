@@ -11,26 +11,41 @@ import {
   ScrollView,
   Pressable,
   Switch,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/AppNavigator';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
 interface CreateReminderScreenProps {
   onCancel?: () => void;
-  onSave?: (data: { title: string; description?: string | null }) => void;
+  onSave?: (data: {
+    title: string;
+    description?: string | null;
+    soundEnabled: boolean;
+    vibrationEnabled: boolean;
+  }) => void;
   initialTitle?: string;
   initialDescription?: string | null;
 }
+
+type Props = NativeStackScreenProps<RootStackParamList, 'CreateReminder'> &
+  CreateReminderScreenProps;
 
 export function CreateReminderScreen({
   onCancel,
   onSave,
   initialTitle,
   initialDescription,
-}: CreateReminderScreenProps) {
-  const cancel = onCancel ?? (() => {});
+}: Props) {
+  const navigation = useNavigation<NativeStackScreenProps<RootStackParamList>['navigation']>();
+  const cancel = onCancel ?? (() => navigation.goBack());
   const [title, setTitle] = useState(initialTitle || '');
   const [description, setDescription] = useState(initialDescription || '');
   const [titleError, setTitleError] = useState<string | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [vibrationEnabled, setVibrationEnabled] = useState(true);
 
   const handleSave = () => {
     if (!title.trim()) {
@@ -38,129 +53,137 @@ export function CreateReminderScreen({
       return;
     }
     setTitleError(null);
-    onSave?.({ title: title.trim(), description: description || null });
+    const data = { title: title.trim(), description: description || null, soundEnabled, vibrationEnabled };
+    if (onSave) {
+      onSave(data);
+    } else {
+      navigation.goBack();
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={Typography.h2}>
-          {initialTitle ? 'Edit Reminder' : 'Create Reminder'}
-        </Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <Text style={Typography.h2}>
+            {initialTitle ? 'Edit Reminder' : 'Create Reminder'}
+          </Text>
 
-        <View style={styles.field}>
-          <Text style={Typography.bodySmall}>Title</Text>
-          <TextInput
-            testID="createReminder.title.input"
-            accessibilityLabel="Reminder title"
-            accessibilityRole="textinput"
-            value={title}
-            onChangeText={(t) => {
-              setTitle(t);
-              if (t.trim()) setTitleError(null);
-            }}
-            style={[
-              styles.input,
-              titleError && styles.inputError,
-            ]}
-            placeholder="e.g. Grocery Store"
-            placeholderTextColor={Colors.textMuted}
-          />
-          {titleError ? (
-            <Text style={styles.errorText}>{titleError}</Text>
-          ) : null}
-        </View>
-
-        <View style={styles.field}>
-          <Text style={Typography.bodySmall}>Description (optional)</Text>
-          <TextInput
-            testID="createReminder.description.input"
-            accessibilityLabel="Reminder description"
-            accessibilityRole="textinput"
-            value={description || ''}
-            onChangeText={setDescription}
-            style={[styles.input, styles.textArea]}
-            placeholder="e.g. Buy eggs and milk"
-            placeholderTextColor={Colors.textMuted}
-            multiline
-            numberOfLines={3}
-          />
-        </View>
-
-        <View style={styles.locationSection}>
-          <Text style={Typography.bodySmall}>Location</Text>
-          <View style={styles.locationInfo}>
-            <Text style={Typography.caption}>200m radius (fixed)</Text>
+          <View style={styles.field}>
+            <Text style={Typography.bodySmall}>Title</Text>
+            <TextInput
+              testID="createReminder.title.input"
+              accessibilityLabel="Reminder title"
+              value={title}
+              onChangeText={(t) => {
+                setTitle(t);
+                if (t.trim()) setTitleError(null);
+              }}
+              style={[
+                styles.input,
+                titleError && styles.inputError,
+              ]}
+              placeholder="e.g. Grocery Store"
+              placeholderTextColor={Colors.textMuted}
+            />
+            {titleError ? (
+              <Text style={styles.errorText}>{titleError}</Text>
+            ) : null}
           </View>
-          <View style={styles.locationButtons}>
-            <Pressable
-              testID="createReminder.location.current.button"
-              accessibilityLabel="Use current location"
-              accessibilityRole="button"
-              style={styles.locationButton}
-            >
-              <Text style={styles.locationButtonText}>Current Location</Text>
-            </Pressable>
-            <Pressable
-              testID="createReminder.location.pin.button"
-              accessibilityLabel="Place a map pin"
-              accessibilityRole="button"
-              style={styles.locationButton}
-            >
-              <Text style={styles.locationButtonText}>Place Pin</Text>
-            </Pressable>
-          </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={Typography.bodySmall}>Notifications</Text>
-          <View style={styles.toggleRow}>
-            <Text style={Typography.body}>Sound</Text>
-            <Switch
-              testID="createReminder.notification.sound.toggle"
-              accessibilityLabel="Toggle notification sound"
-              accessibilityRole="switch"
-              value={true}
-              onValueChange={() => {}}
-              trackColor={{ false: Colors.disabledFill, true: Colors.signalRed }}
-              thumbColor="#FFFFFF"
+          <View style={styles.field}>
+            <Text style={Typography.bodySmall}>Description (optional)</Text>
+            <TextInput
+              testID="createReminder.description.input"
+              accessibilityLabel="Reminder description"
+              value={description || ''}
+              onChangeText={setDescription}
+              style={[styles.input, styles.textArea]}
+              placeholder="e.g. Buy eggs and milk"
+              placeholderTextColor={Colors.textMuted}
+              multiline
+              numberOfLines={3}
             />
           </View>
-          <View style={styles.toggleRow}>
-            <Text style={Typography.body}>Vibration</Text>
-            <Switch
-              testID="createReminder.notification.vibration.toggle"
-              accessibilityLabel="Toggle notification vibration"
-              accessibilityRole="switch"
-              value={true}
-              onValueChange={() => {}}
-              trackColor={{ false: Colors.disabledFill, true: Colors.signalRed }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-        </View>
 
-        <View style={styles.buttonRow}>
-          <Pressable
-            testID="createReminder.cancel.button"
-            accessibilityLabel="Cancel"
-            accessibilityRole="button"
-            onPress={cancel}
-            style={[styles.button, styles.cancelButton]}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </Pressable>
-          <Pressable
-            testID="createReminder.save.button"
-            accessibilityLabel="Save reminder"
-            accessibilityRole="button"
-            onPress={handleSave}
-            style={[styles.button, styles.saveButton]}
-          >
-            <Text style={styles.saveButtonText}>Save</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+          <View style={styles.locationSection}>
+            <Text style={Typography.bodySmall}>Location</Text>
+            <View style={styles.locationInfo}>
+              <Text style={Typography.caption}>200m radius (fixed)</Text>
+            </View>
+            <View style={styles.locationButtons}>
+              <Pressable
+                testID="createReminder.location.current.button"
+                accessibilityLabel="Use current location"
+                accessibilityRole="button"
+                style={styles.locationButton}
+              >
+                <Text style={styles.locationButtonText}>Current Location</Text>
+              </Pressable>
+              <Pressable
+                testID="createReminder.location.pin.button"
+                accessibilityLabel="Place a map pin"
+                accessibilityRole="button"
+                style={styles.locationButton}
+              >
+                <Text style={styles.locationButtonText}>Place Pin</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={Typography.bodySmall}>Notifications</Text>
+            <View style={styles.toggleRow}>
+              <Text style={Typography.body}>Sound</Text>
+              <Switch
+                testID="createReminder.notification.sound.toggle"
+                accessibilityLabel="Toggle notification sound"
+                accessibilityRole="switch"
+                value={soundEnabled}
+                onValueChange={setSoundEnabled}
+                trackColor={{ false: Colors.disabledFill, true: Colors.signalRed }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+            <View style={styles.toggleRow}>
+              <Text style={Typography.body}>Vibration</Text>
+              <Switch
+                testID="createReminder.notification.vibration.toggle"
+                accessibilityLabel="Toggle notification vibration"
+                accessibilityRole="switch"
+                value={vibrationEnabled}
+                onValueChange={setVibrationEnabled}
+                trackColor={{ false: Colors.disabledFill, true: Colors.signalRed }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          <View style={styles.buttonRow}>
+            <Pressable
+              testID="createReminder.cancel.button"
+              accessibilityLabel="Cancel"
+              accessibilityRole="button"
+              onPress={cancel}
+              style={[styles.button, styles.cancelButton]}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              testID="createReminder.save.button"
+              accessibilityLabel="Save reminder"
+              accessibilityRole="button"
+              onPress={handleSave}
+              style={[styles.button, styles.saveButton]}
+            >
+              <Text style={styles.saveButtonText}>Save</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
