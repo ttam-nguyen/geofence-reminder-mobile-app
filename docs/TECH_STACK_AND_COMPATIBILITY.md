@@ -10,7 +10,7 @@ The requested test environments are:
 
 These are test/runtime targets, not necessarily minimum supported OS versions. Keep the minimum deployment values generated/required by the selected React Native release unless the product owner explicitly chooses to drop older devices.
 
-React Native 0.88.1's current compatibility matrix lists iOS minimum 15.1, Android min SDK 24, compile SDK 37, and target SDK 36. This means an Android 15 device (API 35) can be a test device while the project compiles against a newer SDK. Do not force `compileSdkVersion` or `targetSdkVersion` down to 35 without proving it is required and compatible with current store policy.
+React Native 0.88.1's current compatibility matrix lists iOS minimum 15.1, Android min SDK 26, compile SDK 37, and target SDK 36. This means an Android 15 device (API 35) can be a test device while the project compiles against a newer SDK. Do not force `compileSdkVersion` or `targetSdkVersion` down to 35 without proving it is required and compatible with current store policy.
 
 ## 2. Framework baseline
 

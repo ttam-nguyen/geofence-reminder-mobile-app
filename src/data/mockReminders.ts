@@ -1,0 +1,78 @@
+// Deterministic mock reminders for UI development.
+
+import { Reminder, ReminderStatus } from '../types/Reminder';
+
+const now = new Date().toISOString();
+const hoursAgo = (h: number) =>
+  new Date(Date.now() - h * 3600000).toISOString();
+
+export const mockReminders: Reminder[] = [
+  {
+    id: 'mock-1',
+    title: 'Grocery Store',
+    description: 'Buy eggs, milk, and bread',
+    latitude: 37.7749,
+    longitude: -122.4194,
+    locationName: 'Whole Foods Market',
+    radiusMeters: 200,
+    locationSource: 'search',
+    status: ReminderStatus.ARMED,
+    createdAt: hoursAgo(48),
+    updatedAt: hoursAgo(2),
+    triggeredAt: null,
+    completedAt: null,
+    notificationSoundEnabled: true,
+    notificationVibrationEnabled: true,
+  },
+  {
+    id: 'mock-2',
+    title: 'Home',
+    description: null,
+    latitude: 37.7849,
+    longitude: -122.4094,
+    locationName: 'Apartment',
+    radiusMeters: 200,
+    locationSource: 'current',
+    status: ReminderStatus.ARMED,
+    createdAt: hoursAgo(168),
+    updatedAt: now,
+    triggeredAt: null,
+    completedAt: null,
+    notificationSoundEnabled: true,
+    notificationVibrationEnabled: false,
+  },
+  {
+    id: 'mock-3',
+    title: 'Gym',
+    description: 'Don\'t forget your towel',
+    latitude: 37.7649,
+    longitude: -122.4294,
+    locationName: 'Planet Fitness',
+    radiusMeters: 200,
+    locationSource: 'pin',
+    status: ReminderStatus.ARRIVAL_PENDING,
+    createdAt: hoursAgo(6),
+    updatedAt: now,
+    triggeredAt: null,
+    completedAt: null,
+    notificationSoundEnabled: true,
+    notificationVibrationEnabled: true,
+  },
+  {
+    id: 'mock-4',
+    title: 'Pharmacy',
+    description: 'Pick up prescription',
+    latitude: 37.7549,
+    longitude: -122.4394,
+    locationName: 'CVS Pharmacy',
+    radiusMeters: 200,
+    locationSource: 'search',
+    status: ReminderStatus.TRIGGERED,
+    createdAt: hoursAgo(72),
+    updatedAt: hoursAgo(1),
+    triggeredAt: hoursAgo(1),
+    completedAt: null,
+    notificationSoundEnabled: true,
+    notificationVibrationEnabled: true,
+  },
+];

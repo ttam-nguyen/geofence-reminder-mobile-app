@@ -1,4 +1,70 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# GPS Reminder
+
+A location-triggered reminder app. Create reminders tied to a place — when you enter that area, you get notified.
+No time-based triggers. Purely geographic. One-action reminders: "When I enter the grocery store, remind me to buy eggs."
+
+## Tech Stack
+
+- React Native 0.88.1 (TypeScript, strict mode)
+- React 19.3.0
+- Hermes V1 (New Architecture enabled)
+- Navigation: React Navigation 7.x (stack + bottom tabs)
+- State: Zustand 5.x
+- Persistence: SQLite via OP-SQLite (planned)
+- Maps: react-native-maps (planned)
+- Notifications: notifee (planned)
+
+## Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# iOS (CocoaPods needed on first run)
+bundle install && bundle exec pod install --project-directory=ios
+npm run ios
+
+# Android (requires JAVA_HOME set — see below)
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+npm run android
+```
+
+## JDK Requirement (Android builds)
+
+This machine has JDK 26 as the system default, but React Native requires JDK 17–20.
+Set `JAVA_HOME` before every Android build:
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+```
+
+Add the above to your shell profile (`~/.zshrc` or `~/.bash_profile`) so it persists across sessions.
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [AGENT_START_HERE.md](./AGENT_START_HERE.md) | Mandatory working rules and first task |
+| [DEVELOPMENT_PLAN.md](./docs/DEVELOPMENT_PLAN.md) | Phased roadmap, gates, scope control |
+| [TECH_STACK_AND_COMPATIBILITY.md](./docs/TECH_STACK_AND_COMPATIBILITY.md) | Selected baseline and dependency policy |
+| [FINAL_PRODUCT_DECISIONS.md](./docs/FINAL_PRODUCT_DECISIONS.md) | Confirmed product decisions |
+| [ARRIVAL_DETECTION_AND_GEOFENCING.md](./docs/ARRIVAL_DETECTION_AND_GEOFENCING.md) | Geofence spec (normative) |
+| [DEVELOPER_MODE.md](./docs/DEVELOPER_MODE.md) | Build-time test overrides |
+| [UI_UX_SPECIFICATION.md](./docs/UI_UX_SPECIFICATION.md) | Visual system and screen behavior |
+| [ENVIRONMENT_BASELINE.md](./docs/ENVIRONMENT_BASELINE.md) | Machine/environment documentation |
+| [spec.md](./reference/spec.md) | Original product spec (preserved for traceability) |
+| [INTERACTION_REGISTRY.md](./tracking/INTERACTION_REGISTRY.md) | Stable testIDs for E2E automation |
+
+## Project Priorities
+
+- One primary agent/developer owns implementation.
+- At most **one** subagent active (research only).
+- Build UI and navigation first using deterministic mock data.
+- Core reminder experience is offline-first.
+- No geofencing, background location, live search, ads, or purchases during initial UI milestones.
+- Production radius is fixed at 200m; users do not select a radius.
+- Trigger only after valid speed remains strictly below 2 mph for 120 consecutive seconds inside the geofence.
+- Do not claim geofencing works based on simulator-only testing.
 
 # Getting Started
 
