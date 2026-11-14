@@ -44,6 +44,7 @@ export const BorderRadius = {
   md: 12,
   lg: 16,
   xl: 24,
+  pill: 999,
 } as const;
 
 export const PlatformConstants = {

@@ -1,4 +1,4 @@
-// Home screen — list of reminders with mock data.
+// Home screen — list of reminders with mock data, detail navigation, and overflow actions.
 
 import React, { useState } from 'react';
 import {
@@ -6,18 +6,22 @@ import {
   Text,
   FlatList,
   StyleSheet,
+  SafeAreaView,
   Pressable,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView as SafeArea } from 'react-native-safe-area-context';
 import { mockReminders } from '../data/mockReminders';
 import { ReminderCard } from '../components/ReminderCard';
+import { Reminder, ReminderStatus } from '../types/Reminder';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
 interface HomeScreenProps {
-  onNavigateToCreate: () => void;
+  onNavigateToCreate: (reminderId?: string, reminder?: Reminder) => void;
+  onNavigateToDetail?: (reminder: Reminder) => void;
 }
 
-export function HomeScreen({ onNavigateToCreate }: HomeScreenProps) {
+export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScreenProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const toggleExpand = (id: string) => {
@@ -25,19 +29,48 @@ export function HomeScreen({ onNavigateToCreate }: HomeScreenProps) {
   };
 
   const handleCardPress = (id: string) => {
-    // Navigate to detail/edit — placeholder for now
-    console.log('Navigate to reminder:', id);
+    const reminder = mockReminders.find((r) => r.id === id);
+    if (reminder && onNavigateToDetail) {
+      onNavigateToDetail(reminder);
+    }
+  };
+
+  const handleOverflow = (id: string, action: 'edit' | 'complete' | 'delete') => {
+    const reminder = mockReminders.find((r) => r.id === id);
+    if (!reminder) return;
+
+    if (action === 'edit') {
+      onNavigateToCreate(reminder.id, reminder);
+    } else if (action === 'complete') {
+      Alert.alert(
+        'Complete Reminder',
+        `Mark "${reminder.title}" as completed?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Complete', onPress: () => {} },
+        ],
+      );
+    } else if (action === 'delete') {
+      Alert.alert(
+        'Delete Reminder',
+        `Are you sure you want to delete "${reminder.title}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: () => {} },
+        ],
+      );
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeArea style={styles.container}>
       <View style={styles.header}>
         <Text style={Typography.h1}>Reminders</Text>
         <Pressable
           testID="home.createReminder.button"
           accessibilityLabel="Create new reminder"
           accessibilityRole="button"
-          onPress={onNavigateToCreate}
+          onPress={() => onNavigateToCreate()}
           style={styles.addButton}
         >
           <Text style={styles.addButtonText}>+</Text>
@@ -53,6 +86,7 @@ export function HomeScreen({ onNavigateToCreate }: HomeScreenProps) {
             reminder={item}
             onPress={handleCardPress}
             onExpand={toggleExpand}
+            onOverflowPress={handleOverflow}
             expanded={expandedId === item.id}
           />
         )}
@@ -64,7 +98,7 @@ export function HomeScreen({ onNavigateToCreate }: HomeScreenProps) {
           </View>
         }
       />
-    </SafeAreaView>
+    </SafeArea>
   );
 }
 
@@ -83,7 +117,7 @@ const styles = StyleSheet.create({
   addButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: BorderRadius.pill,
     backgroundColor: Colors.signalRed,
     justifyContent: 'center',
     alignItems: 'center',

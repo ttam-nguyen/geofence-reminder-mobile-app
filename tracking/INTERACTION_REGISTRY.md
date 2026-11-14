@@ -25,8 +25,12 @@ Requirements:
 | `navigation.tab.map` | Global | Map tab | Tab | Navigate to Map | Planned |
 | `navigation.tab.settings` | Global | Settings tab | Tab | Navigate to Settings | Planned |
 | `home.createReminder.button` | Home | Add reminder | Button | Open Create Reminder | Planned |
-| `home.reminder.card.<reminderId>` | Home | Reminder card | Pressable | Open reminder detail | Planned |
-| `home.reminder.expand.<reminderId>` | Home | Expand reminder | Button | Expand/collapse card | Planned |
+| `home.reminder.card.<reminderId>` | Home | Reminder card | Pressable | Open reminder detail | Implemented |
+| `home.reminder.expand.<reminderId>` | Home | Expand reminder (chevron) | Button | Expand/collapse card to show full description | Implemented |
+| `home.reminder.overflow.<reminderId>` | Home | Overflow (⋮) | Button | Show edit/complete/delete menu | Implemented |
+| `home.reminder.overflow.edit.<reminderId>` | Home | Overflow → Edit | Button | Navigate to CreateReminder in edit mode (pre-fills title/description) | Implemented |
+| `home.reminder.overflow.complete.<reminderId>` | Home | Overflow → Complete | Button | Show completion confirmation dialog | Implemented |
+| `home.reminder.overflow.delete.<reminderId>` | Home | Overflow → Delete | Button | Show deletion confirmation dialog | Implemented |
 | `createReminder.title.input` | Create | Title | TextInput | Enter title | Planned |
 | `createReminder.description.input` | Create | Description | TextInput | Enter description | Planned |
 | `createReminder.location.current.button` | Create | Current location | Button | Select current/mock location | Planned |

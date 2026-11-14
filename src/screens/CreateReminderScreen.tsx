@@ -7,7 +7,7 @@ import {
   TextInput,
   StyleSheet,
   Platform,
-  SafeAreaView,
+  SafeAreaView as RNSafeAreaView,
   ScrollView,
   Pressable,
   Switch,
@@ -16,6 +16,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { Reminder, ReminderStatus } from '../types/Reminder';
+import { SafeAreaView as SafeArea } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
 interface CreateReminderScreenProps {
@@ -26,23 +28,25 @@ interface CreateReminderScreenProps {
     soundEnabled: boolean;
     vibrationEnabled: boolean;
   }) => void;
-  initialTitle?: string;
-  initialDescription?: string | null;
+  /** Pass a reminder to edit; omit for create mode. */
+  reminder?: Reminder;
 }
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateReminder'> &
   CreateReminderScreenProps;
 
-export function CreateReminderScreen({
-  onCancel,
-  onSave,
-  initialTitle,
-  initialDescription,
-}: Props) {
+const isEditing = (props: Props): boolean => {
+  return 'reminder' in props.route.params && !!props.route.params.reminder;
+};
+
+export function CreateReminderScreen(props: Props) {
   const navigation = useNavigation<NativeStackScreenProps<RootStackParamList>['navigation']>();
-  const cancel = onCancel ?? (() => navigation.goBack());
-  const [title, setTitle] = useState(initialTitle || '');
-  const [description, setDescription] = useState(initialDescription || '');
+  const editing = isEditing(props);
+  const reminder = editing ? (props.route.params.reminder as Reminder) : undefined;
+
+  const cancel = props.onCancel ?? (() => navigation.goBack());
+  const [title, setTitle] = useState(reminder?.title || '');
+  const [description, setDescription] = useState(reminder?.description || '');
   const [titleError, setTitleError] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
@@ -54,22 +58,23 @@ export function CreateReminderScreen({
     }
     setTitleError(null);
     const data = { title: title.trim(), description: description || null, soundEnabled, vibrationEnabled };
-    if (onSave) {
-      onSave(data);
+    if (props.onSave) {
+      props.onSave(data);
     } else {
       navigation.goBack();
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <SafeArea edges={['bottom']} style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={Typography.h2}>
-            {initialTitle ? 'Edit Reminder' : 'Create Reminder'}
+            {editing ? 'Edit Reminder' : 'Create Reminder'}
           </Text>
 
           <View style={styles.field}>
@@ -183,8 +188,9 @@ export function CreateReminderScreen({
             </Pressable>
           </View>
         </ScrollView>
+        </SafeArea>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

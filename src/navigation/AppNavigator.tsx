@@ -1,4 +1,4 @@
-// Root navigation — bottom tabs with stack overlay for create flow.
+// Root navigation — bottom tabs with stack overlay for create/detail flows.
 
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
@@ -10,12 +10,15 @@ import { HomeScreen } from "../screens/HomeScreen";
 import { MapScreen } from "../screens/MapScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { CreateReminderScreen } from "../screens/CreateReminderScreen";
+import { ReminderDetailScreen } from "../screens/ReminderDetailScreen";
 import { Colors, Typography } from "../theme";
 import { enableScreens } from "react-native-screens";
+import { Reminder } from "../types/Reminder";
 
 export type RootStackParamList = {
   Main: undefined;
-  CreateReminder: { reminderId?: string };
+  CreateReminder: { reminderId?: string; reminder?: Reminder };
+  Detail: { reminder: Reminder };
 };
 
 export type TabParamList = {
@@ -28,6 +31,14 @@ const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList, "Main">) {
+  const navigateToCreate = (reminderId?: string, reminder?: Reminder) => {
+    if (reminderId && reminder) {
+      navigation.navigate("CreateReminder", { reminderId, reminder });
+    } else {
+      navigation.navigate("CreateReminder", {});
+    }
+  };
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -50,7 +61,14 @@ function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList
       }}
     >
       <Tab.Screen name="Home" options={{ title: "Reminders", tabBarLabel: "Home" }}>
-        {() => <HomeScreen onNavigateToCreate={() => navigation.navigate("CreateReminder", {})} />}
+        {() => (
+          <HomeScreen
+            onNavigateToCreate={navigateToCreate}
+            onNavigateToDetail={(reminder) =>
+              navigation.navigate("Detail", { reminder })
+            }
+          />
+        )}
       </Tab.Screen>
       <Tab.Screen name="Map" component={MapScreen} options={{ title: "Map", tabBarLabel: "Map" }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings", tabBarLabel: "Settings" }} />
@@ -72,8 +90,17 @@ export function AppNavigator() {
         <Stack.Screen
           name="CreateReminder"
           component={CreateReminderScreen}
-          options={{ title: "Create Reminder", presentation: "modal" }}
+          options={({ route }) => ({
+            title: (route.params.reminder as Reminder)?.title ? 'Edit Reminder' : 'Create Reminder',
+            presentation: 'modal',
+          })}
         />
+        <Stack.Screen
+          name="Detail"
+          options={({ route }) => ({ title: route.params.reminder.title })}
+        >
+          {(props) => <ReminderDetailScreen {...props} />}
+        </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
   );
