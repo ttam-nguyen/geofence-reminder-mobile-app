@@ -1,27 +1,34 @@
 // ReminderCard — glass-styled card showing a reminder's summary with status badge and overflow menu.
 
-import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet, Platform, Modal, TouchableOpacity } from "react-native";
-import { Reminder, ReminderStatus } from "../types/Reminder";
-import { Colors, Spacing, Typography, BorderRadius } from "../theme";
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Platform,
+  Modal,
+  TouchableOpacity,
+} from 'react-native';
+import { Reminder, ReminderStatus } from '../types/Reminder';
+import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
 interface ReminderCardProps {
   reminder: Reminder;
   onPress?: (id: string) => void;
-  onExpand?: (id: string) => void;
-  onOverflowPress?: (id: string, action: "edit" | "complete" | "delete") => void;
-  expanded?: boolean;
+  onOverflowPress?: (id: string, action: 'edit' | 'complete' | 'delete') => void;
 }
 
 const statusLabels: Record<ReminderStatus, string> = {
-  [ReminderStatus.DRAFT]: "Draft",
-  [ReminderStatus.WAITING_FOR_EXIT]: "Waiting for Exit",
-  [ReminderStatus.ARMED]: "Active",
-  [ReminderStatus.ARRIVAL_PENDING]: "Arriving…",
-  [ReminderStatus.TRIGGERED]: "Triggered",
-  [ReminderStatus.COMPLETED]: "Completed",
-  [ReminderStatus.PAUSED]: "Paused",
-  [ReminderStatus.DELETED]: "Deleted",
+  [ReminderStatus.DRAFT]: 'Draft',
+  [ReminderStatus.WAITING_FOR_EXIT]: 'Waiting for Exit',
+  [ReminderStatus.ARMED]: 'Active',
+  [ReminderStatus.ARRIVAL_PENDING]: 'Arriving…',
+  [ReminderStatus.TRIGGERED]: 'Triggered',
+  [ReminderStatus.COMPLETED]: 'Completed',
+  [ReminderStatus.PAUSED]: 'Paused',
+  [ReminderStatus.CANCELLED]: 'Cancelled',
+  [ReminderStatus.DELETED]: 'Deleted',
 };
 
 const statusColors: Record<ReminderStatus, string> = {
@@ -32,15 +39,15 @@ const statusColors: Record<ReminderStatus, string> = {
   [ReminderStatus.TRIGGERED]: Colors.danger,
   [ReminderStatus.COMPLETED]: Colors.textMuted,
   [ReminderStatus.PAUSED]: Colors.waitingAmber,
+  [ReminderStatus.CANCELLED]: Colors.danger,
   [ReminderStatus.DELETED]: Colors.danger,
 };
 
-const truncateDescription = (desc: string | null, maxLen: number): string => {
-  if (!desc) return "";
-  return desc.length > maxLen ? `${desc.slice(0, maxLen)}…` : desc;
-};
-
-export function ReminderCard({ reminder, onPress, onExpand, onOverflowPress, expanded }: ReminderCardProps) {
+export function ReminderCard({
+  reminder,
+  onPress,
+  onOverflowPress,
+}: ReminderCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const statusColor = statusColors[reminder.status] || Colors.textMuted;
   const isTriggered = reminder.status === ReminderStatus.TRIGGERED;
@@ -75,33 +82,26 @@ export function ReminderCard({ reminder, onPress, onExpand, onOverflowPress, exp
       </View>
 
       <Text style={Typography.bodySmall} numberOfLines={2}>
-        {reminder.locationName || "No location name"}
+        {reminder.locationName || 'No location name'}
       </Text>
+
+      {reminder.description ? (
+        <Text style={Typography.caption} numberOfLines={1}>
+          {reminder.description}
+        </Text>
+      ) : null}
 
       <View style={styles.footer}>
         <Text style={Typography.caption}>{reminder.radiusMeters}m radius</Text>
-        {onExpand && reminder.description ? (
-          <Pressable
-            testID={`home.reminder.expand.${reminder.id}`}
-            accessibilityLabel={expanded ? "Collapse reminder" : "Expand reminder"}
-            accessibilityRole="button"
-            onPress={() => onExpand?.(reminder.id)}
-            style={styles.expandButton}
-          >
-            <Text style={[Typography.caption, styles.expandIcon]}>{expanded ? "▲" : "▼"}</Text>
-          </Pressable>
-        ) : null}
       </View>
 
-      {/* Description: truncated preview when collapsed, full text when expanded */}
-      {reminder.description && !expanded ? (
-        <Text style={styles.descText}>{truncateDescription(reminder.description, 15)}</Text>
-      ) : null}
-
-      {expanded && reminder.description ? <Text style={styles.descText}>{reminder.description}</Text> : null}
-
       {/* Overflow menu */}
-      <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+      <Modal
+        visible={showMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMenu(false)}
+      >
         <Pressable style={styles.menuBackdrop} onPress={() => setShowMenu(false)}>
           <View style={styles.menu}>
             {!isTriggered && (
@@ -110,7 +110,7 @@ export function ReminderCard({ reminder, onPress, onExpand, onOverflowPress, exp
                 accessibilityLabel="Edit reminder"
                 accessibilityRole="button"
                 onPress={() => {
-                  onOverflowPress?.(reminder.id, "edit");
+                  onOverflowPress?.(reminder.id, 'edit');
                   setShowMenu(false);
                 }}
                 style={styles.menuItem}
@@ -124,7 +124,7 @@ export function ReminderCard({ reminder, onPress, onExpand, onOverflowPress, exp
                 accessibilityLabel="Complete reminder"
                 accessibilityRole="button"
                 onPress={() => {
-                  onOverflowPress?.(reminder.id, "complete");
+                  onOverflowPress?.(reminder.id, 'complete');
                   setShowMenu(false);
                 }}
                 style={styles.menuItem}
@@ -137,7 +137,7 @@ export function ReminderCard({ reminder, onPress, onExpand, onOverflowPress, exp
               accessibilityLabel="Delete reminder"
               accessibilityRole="button"
               onPress={() => {
-                onOverflowPress?.(reminder.id, "delete");
+                onOverflowPress?.(reminder.id, 'delete');
                 setShowMenu(false);
               }}
               style={styles.menuItem}
@@ -160,20 +160,20 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderGlass,
     ...Platform.select({
       ios: {
-        backdropFilter: "blur(10px)",
-        WebKitBackdropFilter: "blur(10px)",
+        backdropFilter: 'blur(10px)',
+        WebKitBackdropFilter: 'blur(10px)',
       },
     }),
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: Spacing.xs,
   },
   headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.xs,
   },
   statusBadge: {
@@ -183,8 +183,8 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 10,
-    fontWeight: "600",
-    color: "#FFFFFF",
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   overflowButton: {
     padding: Spacing.xs,
@@ -195,34 +195,20 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   footer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: Spacing.xs,
-  },
-  expandButton: {
-    padding: Spacing.xs,
-  },
-  expandIcon: {
-    color: Colors.signalRed,
-  },
-  descText: {
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderGlass,
-    ...Typography.caption,
   },
   menuBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
   },
   menu: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
-    marginHorizontal: Spacing.md,
-    marginBottom: 80,
+    margin: Spacing.md,
     padding: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.borderGlass,

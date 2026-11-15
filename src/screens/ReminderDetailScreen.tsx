@@ -26,6 +26,7 @@ const statusLabels: Record<ReminderStatus, string> = {
   [ReminderStatus.TRIGGERED]: 'Triggered',
   [ReminderStatus.COMPLETED]: 'Completed',
   [ReminderStatus.PAUSED]: 'Paused',
+  [ReminderStatus.CANCELLED]: 'Cancelled',
   [ReminderStatus.DELETED]: 'Deleted',
 };
 
@@ -209,6 +210,7 @@ const statusColors: Record<ReminderStatus, string> = {
   [ReminderStatus.TRIGGERED]: Colors.danger,
   [ReminderStatus.COMPLETED]: Colors.textMuted,
   [ReminderStatus.PAUSED]: Colors.waitingAmber,
+  [ReminderStatus.CANCELLED]: Colors.danger,
   [ReminderStatus.DELETED]: Colors.danger,
 };
 

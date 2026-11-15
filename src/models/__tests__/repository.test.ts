@@ -1,5 +1,25 @@
 import { InMemoryReminderRepository } from '../repository';
-import { ReminderStatus } from '../../types/Reminder';
+import { Reminder, ReminderStatus } from '../../types/Reminder';
+
+function makeReminder(partial: Partial<Reminder>): Reminder {
+  return {
+    id: partial.id || 'temp-id',
+    title: partial.title || '',
+    description: partial.description ?? null,
+    latitude: partial.latitude ?? 0,
+    longitude: partial.longitude ?? 0,
+    locationName: partial.locationName ?? null,
+    radiusMeters: partial.radiusMeters ?? 200,
+    locationSource: partial.locationSource ?? 'current',
+    status: partial.status ?? ReminderStatus.DRAFT,
+    createdAt: partial.createdAt ?? new Date().toISOString(),
+    updatedAt: partial.updatedAt ?? new Date().toISOString(),
+    triggeredAt: partial.triggeredAt ?? null,
+    completedAt: partial.completedAt ?? null,
+    notificationSoundEnabled: partial.notificationSoundEnabled ?? true,
+    notificationVibrationEnabled: partial.notificationVibrationEnabled ?? true,
+  };
+}
 
 describe('InMemoryReminderRepository', () => {
   let repo: InMemoryReminderRepository;
@@ -14,29 +34,25 @@ describe('InMemoryReminderRepository', () => {
 
   describe('findById', () => {
     it('returns undefined for a non-existent ID', async () => {
-      await repo.save({
+      await repo.save(makeReminder({
         id: 'test-1',
         title: 'Test Reminder',
         description: 'A test',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      });
+        latitude: 40.7128,
+        longitude: -74.006,
+      }));
 
       expect(repo.findById('non-existent')).toBeUndefined();
     });
 
     it('returns the reminder for an existing ID', async () => {
-      const reminder = {
+      const reminder = makeReminder({
         id: 'test-1',
         title: 'Test Reminder',
         description: 'A test',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      };
+        latitude: 40.7128,
+        longitude: -74.006,
+      });
       await repo.save(reminder);
 
       const found = repo.findById('test-1');
@@ -48,44 +64,16 @@ describe('InMemoryReminderRepository', () => {
 
   describe('findAll', () => {
     it('returns all reminders without a filter', async () => {
-      await repo.save({
-        id: '1',
-        title: 'Reminder 1',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      });
-      await repo.save({
-        id: '2',
-        title: 'Reminder 2',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.ARMED,
-      });
+      await repo.save(makeReminder({ id: '1', title: 'Reminder 1' }));
+      await repo.save(makeReminder({ id: '2', title: 'Reminder 2', status: ReminderStatus.ARMED }));
 
       const all = repo.findAll();
       expect(all).toHaveLength(2);
     });
 
     it('filters by status when provided', async () => {
-      await repo.save({
-        id: '1',
-        title: 'Reminder 1',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      });
-      await repo.save({
-        id: '2',
-        title: 'Reminder 2',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.ARMED,
-      });
+      await repo.save(makeReminder({ id: '1', title: 'Reminder 1' }));
+      await repo.save(makeReminder({ id: '2', title: 'Reminder 2', status: ReminderStatus.ARMED }));
 
       const armed = repo.findAll(ReminderStatus.ARMED);
       expect(armed).toHaveLength(1);
@@ -100,43 +88,24 @@ describe('InMemoryReminderRepository', () => {
 
   describe('save', () => {
     it('creates a new reminder with createdAt and updatedAt', async () => {
-      const reminder = {
-        id: 'new-1',
-        title: 'New Reminder',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      };
-
-      const saved = await repo.save(reminder);
+      const saved = await repo.save(makeReminder({ id: 'new-1', title: 'New Reminder' }));
       expect(saved).toBeDefined();
       expect(saved.createdAt).toBeDefined();
       expect(saved.updatedAt).toBeDefined();
     });
 
     it('updates an existing reminder and preserves createdAt', async () => {
-      const now = new Date().toISOString();
-      await repo.save({
-        id: 'existing-1',
-        title: 'Original Title',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      });
+      await repo.save(makeReminder({ id: 'existing-1', title: 'Original Title' }));
 
       // Wait a moment to ensure updatedAt would differ
-      await new Promise((r) => setTimeout(r, 10));
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 10));
 
-      const updated = await repo.save({
+      const updated = await repo.save(makeReminder({
         id: 'existing-1',
         title: 'Updated Title',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
         radiusMeters: 300,
         status: ReminderStatus.ARMED,
-      });
+      }));
 
       expect(updated.title).toBe('Updated Title');
       expect(updated.radiusMeters).toBe(300);
@@ -144,26 +113,16 @@ describe('InMemoryReminderRepository', () => {
     });
 
     it('updates updatedAt on save', async () => {
-      await repo.save({
-        id: 'update-1',
-        title: 'Reminder',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      });
+      await repo.save(makeReminder({ id: 'update-1', title: 'Reminder' }));
 
       const first = repo.findById('update-1');
-      await new Promise((r) => setTimeout(r, 10));
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 10));
 
-      await repo.save({
+      await repo.save(makeReminder({
         id: 'update-1',
         title: 'Reminder Updated',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
         status: ReminderStatus.ARMED,
-      });
+      }));
 
       const second = repo.findById('update-1');
       expect(new Date(second?.updatedAt ?? '').getTime()).toBeGreaterThan(
@@ -174,14 +133,7 @@ describe('InMemoryReminderRepository', () => {
 
   describe('deleteById', () => {
     it('returns true and removes the reminder', async () => {
-      await repo.save({
-        id: 'del-1',
-        title: 'To Delete',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      });
+      await repo.save(makeReminder({ id: 'del-1', title: 'To Delete' }));
 
       const result = await repo.deleteById('del-1');
       expect(result).toBe(true);
@@ -196,30 +148,9 @@ describe('InMemoryReminderRepository', () => {
 
   describe('findActive', () => {
     it('excludes COMPLETED, CANCELLED, and DELETED reminders', async () => {
-      await repo.save({
-        id: 'active-1',
-        title: 'Active',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.ARMED,
-      });
-      await repo.save({
-        id: 'completed-1',
-        title: 'Completed',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.COMPLETED,
-      });
-      await repo.save({
-        id: 'cancelled-1',
-        title: 'Cancelled',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.CANCELLED,
-      });
+      await repo.save(makeReminder({ id: 'active-1', title: 'Active', status: ReminderStatus.ARMED }));
+      await repo.save(makeReminder({ id: 'completed-1', title: 'Completed', status: ReminderStatus.COMPLETED }));
+      await repo.save(makeReminder({ id: 'cancelled-1', title: 'Cancelled', status: ReminderStatus.CANCELLED }));
 
       const active = repo.findActive();
       expect(active).toHaveLength(1);
@@ -237,14 +168,7 @@ describe('InMemoryReminderRepository', () => {
       ];
 
       for (let i = 0; i < statuses.length; i++) {
-        await repo.save({
-          id: `active-${i}`,
-          title: `Active ${statuses[i]}`,
-          targetLatitude: 40.7128,
-          targetLongitude: -74.006,
-          radiusMeters: 200,
-          status: statuses[i],
-        });
+        await repo.save(makeReminder({ id: `active-${i}`, title: `Active ${statuses[i]}`, status: statuses[i] }));
       }
 
       const active = repo.findActive();
@@ -254,30 +178,9 @@ describe('InMemoryReminderRepository', () => {
 
   describe('findByStatus', () => {
     it('returns reminders matching the given status', async () => {
-      await repo.save({
-        id: 'd-1',
-        title: 'Draft 1',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      });
-      await repo.save({
-        id: 'd-2',
-        title: 'Draft 2',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      });
-      await repo.save({
-        id: 'a-1',
-        title: 'Armed',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.ARMED,
-      });
+      await repo.save(makeReminder({ id: 'd-1', title: 'Draft 1' }));
+      await repo.save(makeReminder({ id: 'd-2', title: 'Draft 2' }));
+      await repo.save(makeReminder({ id: 'a-1', title: 'Armed', status: ReminderStatus.ARMED }));
 
       const drafts = repo.findByStatus(ReminderStatus.DRAFT);
       expect(drafts).toHaveLength(2);
@@ -286,22 +189,8 @@ describe('InMemoryReminderRepository', () => {
 
   describe('clear', () => {
     it('removes all reminders', async () => {
-      await repo.save({
-        id: 'c-1',
-        title: 'Reminder 1',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.DRAFT,
-      });
-      await repo.save({
-        id: 'c-2',
-        title: 'Reminder 2',
-        targetLatitude: 40.7128,
-        targetLongitude: -74.006,
-        radiusMeters: 200,
-        status: ReminderStatus.ARMED,
-      });
+      await repo.save(makeReminder({ id: 'c-1', title: 'Reminder 1' }));
+      await repo.save(makeReminder({ id: 'c-2', title: 'Reminder 2', status: ReminderStatus.ARMED }));
 
       await repo.clear();
 

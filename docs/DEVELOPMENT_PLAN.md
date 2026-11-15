@@ -99,6 +99,8 @@ Tasks:
 
 **Gate 3:** User approves the visual direction and the screen/interaction registry is complete enough to derive Maestro tests.
 
+**Status: SKIPPED (deferred until after Phase 9).** Decision made 2026-11-14. Skipping Phase 3 now to focus on functional phases (4–9). Visual polish, reduced-motion, contrast/touch-target audit, and interaction freeze will be done as a final pass after Phase 9 completes. Stable testIDs and accessibility labels are added incrementally during Phases 4–9 rather than frozen in Phase 3.
+
 ## Phase 4 — Domain model and state machine
 
 **Goal:** Implement product rules independent of UI and native APIs.

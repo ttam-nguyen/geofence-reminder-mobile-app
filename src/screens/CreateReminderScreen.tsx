@@ -1,6 +1,6 @@
 // CreateReminder screen — form to create or edit a reminder.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,15 +19,11 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 import { Reminder, ReminderStatus } from '../types/Reminder';
 import { SafeAreaView as SafeArea } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
+import { store } from '../stores/reminderStore';
+import { validateReminderPayload, clampRadius } from '../models/validation';
 
 interface CreateReminderScreenProps {
   onCancel?: () => void;
-  onSave?: (data: {
-    title: string;
-    description?: string | null;
-    soundEnabled: boolean;
-    vibrationEnabled: boolean;
-  }) => void;
   /** Pass a reminder to edit; omit for create mode. */
   reminder?: Reminder;
 }
@@ -42,27 +38,88 @@ const isEditing = (props: Props): boolean => {
 export function CreateReminderScreen(props: Props) {
   const navigation = useNavigation<NativeStackScreenProps<RootStackParamList>['navigation']>();
   const editing = isEditing(props);
-  const reminder = editing ? (props.route.params.reminder as Reminder) : undefined;
+  const initialReminder = editing ? (props.route.params.reminder as Reminder) : undefined;
 
   const cancel = props.onCancel ?? (() => navigation.goBack());
-  const [title, setTitle] = useState(reminder?.title || '');
-  const [description, setDescription] = useState(reminder?.description || '');
+  const [title, setTitle] = useState(initialReminder?.title || '');
+  const [description, setDescription] = useState(initialReminder?.description || '');
   const [titleError, setTitleError] = useState<string | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [vibrationEnabled, setVibrationEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(initialReminder?.notificationSoundEnabled ?? true);
+  const [vibrationEnabled, setVibrationEnabled] = useState(initialReminder?.notificationVibrationEnabled ?? true);
+  const [latitude, setLatitude] = useState<number | undefined>(initialReminder?.latitude);
+  const [longitude, setLongitude] = useState<number | undefined>(initialReminder?.longitude);
+  const [locationName, setLocationName] = useState<string | null>(initialReminder?.locationName ?? null);
 
-  const handleSave = () => {
-    if (!title.trim()) {
-      setTitleError('Title is required');
+  useEffect(() => {
+    // Try to get current location when creating a new reminder.
+    if (!editing && !latitude) {
+      const nav = (globalThis as any).navigator;
+      nav?.geolocation?.getCurrentPosition(
+        (pos: { coords: { latitude: number; longitude: number } }) => {
+          setLatitude(pos.coords.latitude);
+          setLongitude(pos.coords.longitude);
+        },
+        () => { /* silently ignore geolocation errors */ },
+        { enableHighAccuracy: true, timeout: 5000 },
+      );
+    }
+  }, [editing, latitude]);
+
+  const handleSave = async () => {
+    const validation = validateReminderPayload(title, description, latitude, longitude, 200);
+    if (!validation.valid) {
+      const titleErr = validation.errors.find((e) => e.field === 'title');
+      if (titleErr) {
+        setTitleError(titleErr.message);
+      } else {
+        setTitleError(null);
+      }
       return;
     }
     setTitleError(null);
-    const data = { title: title.trim(), description: description || null, soundEnabled, vibrationEnabled };
-    if (props.onSave) {
-      props.onSave(data);
+
+    const radiusMeters = clampRadius(200);
+    const now = new Date().toISOString();
+
+    if (editing && initialReminder) {
+      // Update existing reminder.
+      const updated: Reminder = {
+        ...initialReminder,
+        title: title.trim(),
+        description: description || null,
+        latitude: latitude ?? initialReminder.latitude,
+        longitude: longitude ?? initialReminder.longitude,
+        locationName: locationName || initialReminder.locationName,
+        radiusMeters,
+        notificationSoundEnabled: soundEnabled,
+        notificationVibrationEnabled: vibrationEnabled,
+        updatedAt: now,
+        locationSource: initialReminder.locationSource ?? 'current',
+      };
+      await store.save(updated);
     } else {
-      navigation.goBack();
+      // Create new reminder.
+      const newReminder: Reminder = {
+        id: `reminder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: title.trim(),
+        description: description || null,
+        latitude: latitude ?? 0,
+        longitude: longitude ?? 0,
+        locationName,
+        radiusMeters,
+        status: ReminderStatus.DRAFT,
+        notificationSoundEnabled: soundEnabled,
+        notificationVibrationEnabled: vibrationEnabled,
+        createdAt: now,
+        updatedAt: now,
+        triggeredAt: null,
+        completedAt: null,
+        locationSource: 'current',
+      };
+      await store.save(newReminder);
     }
+
+    navigation.goBack();
   };
 
   return (
@@ -118,6 +175,14 @@ export function CreateReminderScreen(props: Props) {
               <Text style={Typography.bodySmall}>Location</Text>
               <View style={styles.locationInfo}>
                 <Text style={Typography.caption}>200m radius (fixed)</Text>
+                {latitude && longitude ? (
+                  <Text style={Typography.caption}>
+                    {latitude.toFixed(4)}, {longitude.toFixed(4)}
+                    {locationName ? ` — ${locationName}` : ''}
+                  </Text>
+                ) : (
+                  <Text style={Typography.caption}>No location set</Text>
+                )}
               </View>
               <View style={styles.locationButtons}>
                 <Pressable
@@ -125,16 +190,19 @@ export function CreateReminderScreen(props: Props) {
                   accessibilityLabel="Use current location"
                   accessibilityRole="button"
                   style={styles.locationButton}
+                  onPress={() => {
+                    const nav = (globalThis as any).navigator;
+                    nav?.geolocation?.getCurrentPosition(
+                      (pos: { coords: { latitude: number; longitude: number } }) => {
+                        setLatitude(pos.coords.latitude);
+                        setLongitude(pos.coords.longitude);
+                      },
+                      () => {},
+                      { enableHighAccuracy: true, timeout: 5000 },
+                    );
+                  }}
                 >
                   <Text style={styles.locationButtonText}>Current Location</Text>
-                </Pressable>
-                <Pressable
-                  testID="createReminder.location.pin.button"
-                  accessibilityLabel="Place a map pin"
-                  accessibilityRole="button"
-                  style={styles.locationButton}
-                >
-                  <Text style={styles.locationButtonText}>Place Pin</Text>
                 </Pressable>
               </View>
             </View>
