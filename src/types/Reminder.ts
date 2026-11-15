@@ -1,4 +1,5 @@
 // Reminder status enum matching the state machine spec.
+// CANCELLED is the canonical name from the spec; DELETED is an alias for backward compatibility.
 
 export enum ReminderStatus {
   DRAFT = 'DRAFT',
@@ -8,7 +9,8 @@ export enum ReminderStatus {
   TRIGGERED = 'TRIGGERED',
   COMPLETED = 'COMPLETED',
   PAUSED = 'PAUSED',
-  DELETED = 'DELETED',
+  CANCELLED = 'CANCELLED',
+  DELETED = 'DELETED', // alias for CANCELLED (backward compat)
 }
 
 export type LocationSource = 'current' | 'pin' | 'search';
