@@ -2,6 +2,10 @@
 
 Use this file to record decisions that affect architecture, scope, or product behavior. Newest entries first.
 
+## 2026-11-15 — DRAFT auto-activation (Phase 4)
+
+Decision: All new reminders are auto-activated to ARMED or WAITING_FOR_EXIT on save based on geolocation. DRAFT is handled by `src/stores/reminderStore.ts` which calls `determineInitialStatus()` before persisting. No user-facing "save as draft" UI yet — DRAFT exists in the state machine but is never used for normal creation. If a user needs to save without activating, they can manually set status to DRAFT in mock data or bypass the store's auto-activation (Phase 8+ will support this).
+
 ## 2026-11-12 — Initial rebuild handoff
 
 - Use React Native Community CLI, not Expo managed workflow.
@@ -21,7 +25,6 @@ Use this file to record decisions that affect architecture, scope, or product be
 ## Open product decisions
 
 1. Radius conflict is resolved for MVP: fixed production radius 200m; no user-facing radius selector. Update the original domain radius validation to the single production constant, while allowing a dev-only override.
-2. The source spec lists `DRAFT` in state machine transitions but does not fully define when a saved reminder should remain DRAFT. Confirm the exact persistence/registration failure behavior.
 3. `COMPLETED` is listed as terminal-ish in prose but allows recreation via DRAFT and cancellation in transition table. Confirm UI actions for completed reminders.
 4. The source concept shows a light glass appearance, while source spec says graphite dark mode first. This kit prioritizes the dark graphite theme with glass layering.
 5. Search uses Nominatim in the old spec. Confirm current usage policy and whether a hosted provider is needed before shipping.

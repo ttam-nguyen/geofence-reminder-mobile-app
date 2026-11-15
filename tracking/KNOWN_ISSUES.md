@@ -13,5 +13,5 @@
 | K-009 | Notifee version/platform behavior needs validation | Notification delivery risk | Test local notification separately before geofence | Open |
 | K-010 | Background speed/location samples may be sparse or inaccurate | Arrival confirmation delayed or false-positive risk | Require valid samples, explicit sample-gap policy, and physical-device testing | Open |
 | K-011 | Developer flag could accidentally leak into Release | Test-only behavior exposed in production | Native Release hard-disable plus `__DEV__` guard and release verification | Open |
-| K-012 | Overflow Complete/Delete from card do not persist state (mock only) | No real completion/deletion on mock data | Requires Phase 5 persistence layer | Open |
-| K-013 | CreateReminder form does not persist data (mock only) | Save navigates back but no reminder stored | Requires Phase 5 persistence layer | Open |
+| K-012 | Overflow Complete/Delete from card do not persist state (mock only) | No real completion/deletion on mock data | Resolved in Phase 4: store.save() and store.deleteById() wired in HomeScreen overflow actions | Resolved (Phase 4) |
+| K-013 | CreateReminder form does not persist data (mock only) | Save navigates back but no reminder stored | Resolved in Phase 4: store.save() wired in CreateReminderScreen; DRAFT auto-activation added | Resolved (Phase 4) |

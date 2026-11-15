@@ -24,31 +24,33 @@ Requirements:
 | `navigation.tab.home` | Global | Home tab | Tab | Navigate to Home | Planned |
 | `navigation.tab.map` | Global | Map tab | Tab | Navigate to Map | Planned |
 | `navigation.tab.settings` | Global | Settings tab | Tab | Navigate to Settings | Planned |
-| `home.createReminder.button` | Home | Add reminder | Button | Open Create Reminder | Planned |
+| `home.createReminder.button` | Home | Add reminder | Button | Open Create Reminder | Implemented |
 | `home.reminder.card.<reminderId>` | Home | Reminder card | Pressable | Open reminder detail | Implemented |
 | `home.reminder.expand.<reminderId>` | Home | Expand reminder (chevron) | Button | Expand/collapse card to show full description | Implemented |
 | `home.reminder.overflow.<reminderId>` | Home | Overflow (⋮) | Button | Show edit/complete/delete menu | Implemented |
 | `home.reminder.overflow.edit.<reminderId>` | Home | Overflow → Edit | Button | Navigate to CreateReminder in edit mode (pre-fills title/description) | Implemented |
 | `home.reminder.overflow.complete.<reminderId>` | Home | Overflow → Complete | Button | Show completion confirmation dialog | Implemented |
 | `home.reminder.overflow.delete.<reminderId>` | Home | Overflow → Delete | Button | Show deletion confirmation dialog | Implemented |
-| `createReminder.title.input` | Create | Title | TextInput | Enter title | Planned |
-| `createReminder.description.input` | Create | Description | TextInput | Enter description | Planned |
-| `createReminder.location.current.button` | Create | Current location | Button | Select current/mock location | Planned |
-| `createReminder.location.pin.button` | Create | Map pin | Button | Select map pin | Planned |
+| `createReminder.title.input` | Create | Title | TextInput | Enter title | Implemented |
+| `createReminder.description.input` | Create | Description | TextInput | Enter description | Implemented |
+| `createReminder.location.current.button` | Create | Current location | Button | Select current/mock location | Implemented |
+| `createReminder.location.pin.button` | Create | Map pin | Button | Select map pin | Implemented |
 | `createReminder.location.search.button` | Create | Search | Button | Start optional place search or show deferred state | Planned |
-| `createReminder.arrivalZone.value` | Create | Fixed 200m arrival zone | Read-only text | Explain the automatic fixed arrival-zone radius | Planned |
-| `createReminder.sound.switch` | Create | Sound | Switch | Toggle sound preference | Planned |
-| `createReminder.vibration.switch` | Create | Vibration | Switch | Toggle vibration preference | Planned |
-| `createReminder.save.button` | Create | Save reminder | Button | Validate and save mock reminder | Planned |
+| `createReminder.arrivalZone.value` | Create | Fixed 200m arrival zone | Read-only text | Explain the automatic fixed arrival-zone radius | Implemented |
+| `createReminder.sound.switch` | Create | Sound | Switch | Toggle sound preference | Implemented |
+| `createReminder.vibration.switch` | Create | Vibration | Switch | Toggle vibration preference | Implemented |
+| `createReminder.save.button` | Create | Save reminder | Button | Validate and save mock reminder | Implemented |
+| `createReminder.cancel.button` | Create | Cancel | Button | Discard changes and go back | Implemented |
 | `reminders.search.input` | List | Search | TextInput | Filter reminders locally | Planned |
 | `reminders.filter.all` | List | All filter | Button | Show all reminders | Planned |
 | `reminders.filter.active` | List | Active filter | Button | Show active reminders | Planned |
 | `reminders.filter.waiting` | List | Waiting filter | Button | Show waiting reminders | Planned |
 | `reminders.filter.triggered` | List | Triggered filter | Button | Show triggered reminders | Planned |
 | `reminders.filter.completed` | List | Completed filter | Button | Show completed reminders | Planned |
-| `reminderDetail.edit.button` | Detail | Edit | Button | Open edit form | Planned |
-| `reminderDetail.delete.button` | Detail | Delete | Button | Open confirmation | Planned |
-| `reminderDetail.delete.confirm` | Detail | Confirm delete | Button | Delete reminder | Planned |
+| `reminderDetail.edit.button` | Detail | Edit | Button | Open edit form | Implemented |
+| `reminderDetail.complete.button` | Detail | Complete | Button | Mark reminder as completed (irreversible) | Implemented |
+| `reminderDetail.delete.button` | Detail | Delete | Button | Open confirmation | Implemented |
+| `reminderDetail.delete.confirm` | Detail | Confirm delete | Button | Delete reminder | Implemented |
 | `settings.notifications.enabled.switch` | Settings | Notifications | Switch | Toggle notification preference | Planned |
 | `settings.notifications.sound.switch` | Settings | Sound | Switch | Toggle sound preference | Planned |
 | `settings.notifications.vibration.switch` | Settings | Vibration | Switch | Toggle vibration preference | Planned |
