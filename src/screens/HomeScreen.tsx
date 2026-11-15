@@ -1,20 +1,12 @@
 // Home screen — list of reminders with mock data, detail navigation, and overflow actions.
 
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  SafeAreaView,
-  Pressable,
-  Alert,
-} from 'react-native';
-import { SafeAreaView as SafeArea } from 'react-native-safe-area-context';
-import { mockReminders } from '../data/mockReminders';
-import { ReminderCard } from '../components/ReminderCard';
-import { Reminder, ReminderStatus } from '../types/Reminder';
-import { Colors, Spacing, Typography, BorderRadius } from '../theme';
+import React, { useState } from "react";
+import { View, Text, FlatList, StyleSheet, SafeAreaView, Pressable, Alert } from "react-native";
+import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
+import { mockReminders } from "../data/mockReminders";
+import { ReminderCard } from "../components/ReminderCard";
+import { Reminder, ReminderStatus } from "../types/Reminder";
+import { Colors, Spacing, Typography, BorderRadius } from "../theme";
 
 interface HomeScreenProps {
   onNavigateToCreate: (reminderId?: string, reminder?: Reminder) => void;
@@ -25,45 +17,37 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const toggleExpand = (id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id));
+    setExpandedId(prev => (prev === id ? null : id));
   };
 
   const handleCardPress = (id: string) => {
-    const reminder = mockReminders.find((r) => r.id === id);
+    const reminder = mockReminders.find(r => r.id === id);
     if (reminder && onNavigateToDetail) {
       onNavigateToDetail(reminder);
     }
   };
 
-  const handleOverflow = (id: string, action: 'edit' | 'complete' | 'delete') => {
-    const reminder = mockReminders.find((r) => r.id === id);
+  const handleOverflow = (id: string, action: "edit" | "complete" | "delete") => {
+    const reminder = mockReminders.find(r => r.id === id);
     if (!reminder) return;
 
-    if (action === 'edit') {
+    if (action === "edit") {
       onNavigateToCreate(reminder.id, reminder);
-    } else if (action === 'complete') {
-      Alert.alert(
-        'Complete Reminder',
-        `Mark "${reminder.title}" as completed?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Complete', onPress: () => {} },
-        ],
-      );
-    } else if (action === 'delete') {
-      Alert.alert(
-        'Delete Reminder',
-        `Are you sure you want to delete "${reminder.title}"?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: () => {} },
-        ],
-      );
+    } else if (action === "complete") {
+      Alert.alert("Complete Reminder", `Mark "${reminder.title}" as completed?`, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Complete", onPress: () => {} },
+      ]);
+    } else if (action === "delete") {
+      Alert.alert("Delete Reminder", `Are you sure you want to delete "${reminder.title}"?`, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => {} },
+      ]);
     }
   };
 
   return (
-    <SafeArea style={styles.container}>
+    <SafeArea style={styles.container} edges={["left", "right"]}>
       <View style={styles.header}>
         <Text style={Typography.h1}>Reminders</Text>
         <Pressable
@@ -79,7 +63,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
 
       <FlatList
         data={mockReminders}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <ReminderCard
@@ -92,9 +76,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={Typography.bodySmall}>
-              No reminders yet. Tap + to create one.
-            </Text>
+            <Text style={Typography.bodySmall}>No reminders yet. Tap + to create one.</Text>
           </View>
         }
       />
@@ -108,9 +90,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
@@ -119,20 +101,21 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: BorderRadius.pill,
     backgroundColor: Colors.signalRed,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   addButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 24,
-    fontWeight: '300',
+    fontWeight: "300",
   },
   list: {
     paddingHorizontal: Spacing.md,
+    paddingBottom: 30, // Adjust this value based on your tab bar height (e.g., 60-90)
     gap: Spacing.sm,
   },
   emptyState: {
     paddingVertical: Spacing.xxl,
-    alignItems: 'center',
+    alignItems: "center",
   },
 });
