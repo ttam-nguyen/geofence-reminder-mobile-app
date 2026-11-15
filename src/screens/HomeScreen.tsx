@@ -60,12 +60,29 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
     } else if (action === 'complete') {
       Alert.alert('Complete Reminder', `Mark "${reminder.title}" as completed?`, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Complete', onPress: () => {} },
+        {
+          text: 'Complete',
+          onPress: () => {
+            const updated: Reminder = {
+              ...reminder,
+              status: ReminderStatus.COMPLETED,
+              completedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            store.save(updated).catch(() => {});
+          },
+        },
       ]);
     } else if (action === 'delete') {
       Alert.alert('Delete Reminder', `Are you sure you want to delete "${reminder.title}"?`, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => {} },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            store.deleteById(id).catch(() => {});
+          },
+        },
       ]);
     }
   };

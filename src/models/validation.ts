@@ -128,8 +128,8 @@ export function validateRadius(radius: number): ValidationError | null {
  * Validate all fields of a reminder creation/edit payload.
  * @param title - Reminder title
  * @param description - Reminder description (optional)
- * @param latitude - Target latitude
- * @param longitude - Target longitude
+ * @param latitude - Target latitude (skip validation when undefined).
+ * @param longitude - Target longitude (skip validation when undefined).
  * @param radiusMeters - Geofence radius in meters
  * @returns ValidationResult with all field errors collected
  */
@@ -148,11 +148,15 @@ export function validateReminderPayload(
   const descErr = validateDescription(description);
   if (descErr) errors.push(descErr);
 
-  const latErr = validateLatitude(latitude ?? NaN);
-  if (latErr) errors.push(latErr);
-
-  const lonErr = validateLongitude(longitude ?? NaN);
-  if (lonErr) errors.push(lonErr);
+  // Skip lat/lon validation when not yet available (geolocation pending).
+  if (latitude !== undefined) {
+    const latErr = validateLatitude(latitude);
+    if (latErr) errors.push(latErr);
+  }
+  if (longitude !== undefined) {
+    const lonErr = validateLongitude(longitude);
+    if (lonErr) errors.push(lonErr);
+  }
 
   const radiusErr = validateRadius(radiusMeters ?? NaN);
   if (radiusErr) errors.push(radiusErr);

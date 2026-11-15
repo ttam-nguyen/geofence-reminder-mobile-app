@@ -43,7 +43,7 @@ export function CreateReminderScreen(props: Props) {
   const cancel = props.onCancel ?? (() => navigation.goBack());
   const [title, setTitle] = useState(initialReminder?.title || '');
   const [description, setDescription] = useState(initialReminder?.description || '');
-  const [titleError, setTitleError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(initialReminder?.notificationSoundEnabled ?? true);
   const [vibrationEnabled, setVibrationEnabled] = useState(initialReminder?.notificationVibrationEnabled ?? true);
   const [latitude, setLatitude] = useState<number | undefined>(initialReminder?.latitude);
@@ -66,17 +66,19 @@ export function CreateReminderScreen(props: Props) {
   }, [editing, latitude]);
 
   const handleSave = async () => {
-    const validation = validateReminderPayload(title, description, latitude, longitude, 200);
+    // Skip lat/lon validation when not yet available (geolocation pending).
+    const validation = validateReminderPayload(
+      title,
+      description,
+      latitude ?? undefined,
+      longitude ?? undefined,
+      200,
+    );
     if (!validation.valid) {
-      const titleErr = validation.errors.find((e) => e.field === 'title');
-      if (titleErr) {
-        setTitleError(titleErr.message);
-      } else {
-        setTitleError(null);
-      }
+      setValidationErrors(validation.errors.map((e) => e.message));
       return;
     }
-    setTitleError(null);
+    setValidationErrors([]);
 
     const radiusMeters = clampRadius(200);
     const now = new Date().toISOString();
@@ -142,17 +144,23 @@ export function CreateReminderScreen(props: Props) {
                 value={title}
                 onChangeText={(t) => {
                   setTitle(t);
-                  if (t.trim()) setTitleError(null);
+                  if (validationErrors.length > 0) {
+                    setValidationErrors(validationErrors.filter((e) => !e.startsWith('Title')));
+                  }
                 }}
                 style={[
                   styles.input,
-                  titleError && styles.inputError,
+                  validationErrors.some((e) => e.startsWith('Title')) && styles.inputError,
                 ]}
                 placeholder="e.g. Grocery Store"
                 placeholderTextColor={Colors.textMuted}
               />
-              {titleError ? (
-                <Text style={styles.errorText}>{titleError}</Text>
+              {validationErrors.length > 0 ? (
+                <View style={styles.errorList}>
+                  {validationErrors.map((err, i) => (
+                    <Text key={i} style={styles.errorText}>{err}</Text>
+                  ))}
+                </View>
               ) : null}
             </View>
 
@@ -289,6 +297,9 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: Colors.danger,
+  },
+  errorList: {
+    marginTop: Spacing.xs,
   },
   errorText: {
     color: Colors.danger,

@@ -15,6 +15,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { Reminder, ReminderStatus } from '../types/Reminder';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
+import { store } from '../stores/reminderStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Detail'>;
 
@@ -52,7 +53,7 @@ export function ReminderDetailScreen({
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            // TODO: persist deletion
+            store.deleteById(reminder.id).catch(() => {});
             navigation.goBack();
           },
         },
@@ -70,7 +71,13 @@ export function ReminderDetailScreen({
           text: 'Complete',
           style: 'destructive',
           onPress: () => {
-            // TODO: persist completion
+            const updated: Reminder = {
+              ...reminder,
+              status: ReminderStatus.COMPLETED,
+              completedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            store.save(updated).catch(() => {});
             navigation.goBack();
           },
         },
