@@ -2,7 +2,8 @@
 // Before Phase 8 (SQLite), this provides persistence across screen navigation.
 
 import { InMemoryReminderRepository, ReminderRepository } from "../models/repository";
-import { Reminder } from "../types/Reminder";
+import { Reminder, ReminderStatus } from "../types/Reminder";
+import { determineInitialStatus } from "../models/initialStatus";
 
 /** Singleton repository instance shared across all screens. */
 const delegate: ReminderRepository = new InMemoryReminderRepository();
@@ -32,6 +33,19 @@ function notifyListeners() {
 /** Save a reminder and bump the version (triggers re-renders). */
 async function save(reminder: Reminder): Promise<Reminder> {
   console.log("[Store] Saving reminder:", reminder);
+
+  // Auto-activate DRAFT reminders based on geolocation.
+  if (reminder.status === ReminderStatus.DRAFT) {
+    const initial = determineInitialStatus(
+      0,           // userLat — default (Phase 8 will pass real position)
+      0,           // userLon — default (Phase 8 will pass real position)
+      reminder.latitude,
+      reminder.longitude,
+      reminder.radiusMeters,
+    );
+    reminder = { ...reminder, status: initial };
+  }
+
   const result = await delegate.save(reminder);
   _version++;
   notifyListeners();
