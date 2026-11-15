@@ -1,8 +1,8 @@
 // Reminder store — singleton in-memory repository for the current session.
 // Before Phase 8 (SQLite), this provides persistence across screen navigation.
 
-import { InMemoryReminderRepository, ReminderRepository } from '../models/repository';
-import { Reminder } from '../types/Reminder';
+import { InMemoryReminderRepository, ReminderRepository } from "../models/repository";
+import { Reminder } from "../types/Reminder";
 
 /** Singleton repository instance shared across all screens. */
 const delegate: ReminderRepository = new InMemoryReminderRepository();
@@ -15,10 +15,26 @@ export function getStoreVersion(): number {
   return _version;
 }
 
+type Listener = () => void;
+let listeners: Listener[] = [];
+
+export function subscribe(listener: Listener) {
+  listeners.push(listener);
+  return () => {
+    listeners = listeners.filter(l => l !== listener);
+  };
+}
+
+function notifyListeners() {
+  listeners.forEach(listener => listener());
+}
+
 /** Save a reminder and bump the version (triggers re-renders). */
 async function save(reminder: Reminder): Promise<Reminder> {
+  console.log("[Store] Saving reminder:", reminder);
   const result = await delegate.save(reminder);
   _version++;
+  notifyListeners();
   return result;
 }
 
@@ -26,19 +42,22 @@ async function save(reminder: Reminder): Promise<Reminder> {
 async function deleteById(id: string): Promise<boolean> {
   const result = await delegate.deleteById(id);
   if (result) _version++;
+  notifyListeners();
   return result;
 }
 
 /** Seed the store with mock reminders for initial UI development. */
 async function seed(): Promise<void> {
-  const { mockReminders } = await import('../data/mockReminders');
+  const { mockReminders } = await import("../data/mockReminders");
   for (const reminder of mockReminders) {
     await save(reminder);
   }
 }
 
 // Seed on first import (only runs once).
-seed().catch(() => { /* ignore seeding errors */ });
+seed().catch(() => {
+  /* ignore seeding errors */
+});
 
 // Re-export the delegate as 'store' for compatibility.
 export const store: ReminderRepository = {

@@ -1,6 +1,6 @@
 // Reminder repository interface and in-memory implementation.
 
-import { Reminder, ReminderStatus } from '../types/Reminder';
+import { Reminder, ReminderStatus } from "../types/Reminder";
 
 /** Repository interface for reminder persistence. */
 export interface ReminderRepository {
@@ -37,8 +37,9 @@ export class InMemoryReminderRepository implements ReminderRepository {
   findAll(statusFilter?: ReminderStatus): Reminder[] {
     let reminders = Array.from(this.store.values());
     if (statusFilter) {
-      reminders = reminders.filter((r) => r.status === statusFilter);
+      reminders = reminders.filter(r => r.status === statusFilter);
     }
+    console.log("[Store] findAll() returning items count:", reminders.length, reminders);
     return reminders;
   }
 
@@ -59,6 +60,7 @@ export class InMemoryReminderRepository implements ReminderRepository {
         updated.triggeredAt = reminder.triggeredAt;
       }
       this.store.set(reminder.id, updated);
+      console.log("[Store] Saving reminder:", reminder);
       return updated;
     } else {
       const newReminder: Reminder = {
@@ -67,6 +69,7 @@ export class InMemoryReminderRepository implements ReminderRepository {
         updatedAt: now,
       };
       this.store.set(reminder.id, newReminder);
+      console.log("[Store] Saving reminder:", newReminder);
       return newReminder;
     }
   }
@@ -81,9 +84,7 @@ export class InMemoryReminderRepository implements ReminderRepository {
       ReminderStatus.CANCELLED,
       ReminderStatus.DELETED,
     ];
-    return this.findAll().filter(
-      (r) => !inactiveStatuses.includes(r.status),
-    );
+    return this.findAll().filter(r => !inactiveStatuses.includes(r.status));
   }
 
   findByStatus(status: ReminderStatus): Reminder[] {
