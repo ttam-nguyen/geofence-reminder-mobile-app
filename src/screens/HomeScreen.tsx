@@ -93,7 +93,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
   };
 
   return (
-    <SafeArea style={styles.container}>
+    <SafeArea style={styles.container} edges={["left", "right"]}>
       <View style={styles.header}>
         <Text style={Typography.h1}>Reminders</Text>
         <Pressable
