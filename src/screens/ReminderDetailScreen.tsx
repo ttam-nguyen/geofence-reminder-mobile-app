@@ -1,6 +1,6 @@
 // ReminderDetail screen — hero summary, map preview, metadata, Edit/Delete.
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { Reminder, ReminderStatus } from '../types/Reminder';
@@ -35,7 +36,17 @@ export function ReminderDetailScreen({
   navigation,
   route,
 }: Props) {
-  const reminder = route.params.reminder;
+  const [reminder, setReminder] = useState<Reminder>(route.params.reminder);
+
+  useFocusEffect(
+    useCallback(() => {
+      const latest = store.findById(route.params.reminder.id);
+      if (latest) {
+        setReminder(latest);
+      }
+    }, [route.params.reminder.id]),
+  );
+
   const statusColor = statusColors[reminder.status] || Colors.textMuted;
   const isTriggered = reminder.status === ReminderStatus.TRIGGERED;
 
