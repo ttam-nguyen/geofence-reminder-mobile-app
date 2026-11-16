@@ -101,6 +101,23 @@ npm test -- --runInBand
 npx react-native doctor
 ```
 
+## Dependency Installation Procedure
+
+When adding **any** new npm package or dependency, perform these two steps in order:
+
+1. **Clean install** — remove node_modules and package-lock.json, then reinstall:
+   ```bash
+   rm -rf node_modules package-lock.json
+   npm install
+   ```
+
+2. **Verify Android build** — run a full gradle assemble:
+   ```bash
+   cd android && ./gradlew app:assembleDebug
+   ```
+
+These steps ensure native modules are properly linked and the Android build is consistent. Do not skip either step.
+
 ## Gate 0 Status: ✅ PASSED
 
 Clean template typechecks, passes tests, and builds/runs on **both** iOS Simulator and Android 15 emulator. Ready for Phase 1 (UI scaffold with mock data).

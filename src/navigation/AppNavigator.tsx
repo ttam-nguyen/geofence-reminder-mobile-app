@@ -64,9 +64,7 @@ function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList
         {() => (
           <HomeScreen
             onNavigateToCreate={navigateToCreate}
-            onNavigateToDetail={(reminder) =>
-              navigation.navigate("Detail", { reminder })
-            }
+            onNavigateToDetail={reminder => navigation.navigate("Detail", { reminder })}
           />
         )}
       </Tab.Screen>
@@ -91,15 +89,12 @@ export function AppNavigator() {
           name="CreateReminder"
           component={CreateReminderScreen}
           options={({ route }) => ({
-            title: (route.params.reminder as Reminder)?.title ? 'Edit Reminder' : 'Create Reminder',
-            presentation: 'modal',
+            title: (route.params.reminder as Reminder)?.title ? "Edit Reminder" : "Create Reminder",
+            presentation: "modal",
           })}
         />
-        <Stack.Screen
-          name="Detail"
-          options={({ route }) => ({ title: route.params.reminder.title })}
-        >
-          {(props) => <ReminderDetailScreen {...props} />}
+        <Stack.Screen name="Detail" options={({ route }) => ({ title: route.params.reminder.title })}>
+          {props => <ReminderDetailScreen {...props} />}
         </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>

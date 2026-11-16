@@ -1,41 +1,31 @@
 // ReminderDetail screen — hero summary, map preview, metadata, Edit/Delete.
 
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  Pressable,
-  Alert,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useFocusEffect } from '@react-navigation/native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/AppNavigator';
-import { Reminder, ReminderStatus } from '../types/Reminder';
-import { Colors, Spacing, Typography, BorderRadius } from '../theme';
-import { store } from '../stores/reminderStore';
+import React, { useState, useCallback } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
+import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../navigation/AppNavigator";
+import { Reminder, ReminderStatus } from "../types/Reminder";
+import { Colors, Spacing, Typography, BorderRadius } from "../theme";
+import { store } from "../stores/reminderStore";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Detail'>;
+type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
 
 const statusLabels: Record<ReminderStatus, string> = {
-  [ReminderStatus.DRAFT]: 'Draft',
-  [ReminderStatus.WAITING_FOR_EXIT]: 'Waiting for Exit',
-  [ReminderStatus.ARMED]: 'Active',
-  [ReminderStatus.ARRIVAL_PENDING]: 'Arriving…',
-  [ReminderStatus.TRIGGERED]: 'Triggered',
-  [ReminderStatus.COMPLETED]: 'Completed',
-  [ReminderStatus.PAUSED]: 'Paused',
-  [ReminderStatus.CANCELLED]: 'Cancelled',
-  [ReminderStatus.DELETED]: 'Deleted',
+  [ReminderStatus.DRAFT]: "Draft",
+  [ReminderStatus.WAITING_FOR_EXIT]: "Waiting for Exit",
+  [ReminderStatus.ARMED]: "Active",
+  [ReminderStatus.ARRIVAL_PENDING]: "Arriving…",
+  [ReminderStatus.TRIGGERED]: "Triggered",
+  [ReminderStatus.COMPLETED]: "Completed",
+  [ReminderStatus.PAUSED]: "Paused",
+  [ReminderStatus.CANCELLED]: "Cancelled",
+  [ReminderStatus.DELETED]: "Deleted",
 };
 
-export function ReminderDetailScreen({
-  navigation,
-  route,
-}: Props) {
+export function ReminderDetailScreen({ navigation, route }: Props) {
   const [reminder, setReminder] = useState<Reminder>(route.params.reminder);
 
   useFocusEffect(
@@ -51,64 +41,56 @@ export function ReminderDetailScreen({
   const isTriggered = reminder.status === ReminderStatus.TRIGGERED;
 
   const handleEdit = () => {
-    navigation.navigate('CreateReminder', { reminderId: reminder.id, reminder });
+    navigation.navigate("CreateReminder", { reminderId: reminder.id, reminder });
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Reminder',
-      `Are you sure you want to delete "${reminder.title}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            store.deleteById(reminder.id).catch(() => {});
-            navigation.goBack();
-          },
+    Alert.alert("Delete Reminder", `Are you sure you want to delete "${reminder.title}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          store.deleteById(reminder.id).catch(() => {});
+          navigation.goBack();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const handleComplete = () => {
-    Alert.alert(
-      'Complete Reminder',
-      `Mark "${reminder.title}" as completed? This is irreversible.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Complete',
-          style: 'destructive',
-          onPress: () => {
-            const updated: Reminder = {
-              ...reminder,
-              status: ReminderStatus.COMPLETED,
-              completedAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            };
-            store.save(updated).catch(() => {});
-            navigation.goBack();
-          },
+    Alert.alert("Complete Reminder", `Mark "${reminder.title}" as completed? This is irreversible.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Complete",
+        style: "destructive",
+        onPress: () => {
+          const updated: Reminder = {
+            ...reminder,
+            status: ReminderStatus.COMPLETED,
+            completedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          store.save(updated).catch(() => {});
+          navigation.goBack();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const formatDateTime = (iso: string | null) => {
-    if (!iso) return '—';
+    if (!iso) return "—";
     return new Date(iso).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeArea style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* Hero summary */}
         <View style={styles.hero}>
@@ -121,9 +103,7 @@ export function ReminderDetailScreen({
             </View>
           </View>
 
-          {reminder.locationName ? (
-            <Text style={Typography.bodySmall}>{reminder.locationName}</Text>
-          ) : null}
+          {reminder.locationName ? <Text style={Typography.bodySmall}>{reminder.locationName}</Text> : null}
 
           <Text style={Typography.caption}>
             {reminder.latitude.toFixed(4)}, {reminder.longitude.toFixed(4)}
@@ -141,9 +121,7 @@ export function ReminderDetailScreen({
         {reminder.description ? (
           <View style={styles.section}>
             <Text style={Typography.bodySmall}>Description</Text>
-            <Text style={[Typography.body, { marginTop: Spacing.xs }]}>
-              {reminder.description}
-            </Text>
+            <Text style={[Typography.body, { marginTop: Spacing.xs }]}>{reminder.description}</Text>
           </View>
         ) : null}
 
@@ -216,7 +194,7 @@ export function ReminderDetailScreen({
           </Pressable>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeArea>
   );
 }
 
@@ -244,9 +222,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   heroHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: Spacing.sm,
   },
   statusBadge: {
@@ -256,8 +234,8 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   mapPreview: {
     height: 160,
@@ -265,8 +243,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.borderGlass,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.lg,
   },
   mapCircle: {
@@ -276,7 +254,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.signalRed,
     opacity: 0.4,
-    position: 'absolute',
+    position: "absolute",
   },
   mapPin: {
     width: 12,
@@ -288,8 +266,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingVertical: Spacing.xs,
   },
   infoBox: {
@@ -299,7 +277,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   buttonRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.sm,
     paddingBottom: Spacing.lg,
   },
@@ -307,7 +285,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
-    alignItems: 'center',
+    alignItems: "center",
     minHeight: 48,
   },
   editButton: {
@@ -318,22 +296,22 @@ const styles = StyleSheet.create({
   editButtonText: {
     ...Typography.body,
     color: Colors.textPrimary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   completeButton: {
     backgroundColor: Colors.waitingAmber,
   },
   completeButtonText: {
     ...Typography.body,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   deleteButton: {
     backgroundColor: Colors.danger,
   },
   deleteButtonText: {
     ...Typography.body,
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });

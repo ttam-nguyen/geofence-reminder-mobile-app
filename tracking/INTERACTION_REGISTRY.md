@@ -41,19 +41,20 @@ Requirements:
 | `createReminder.vibration.switch` | Create | Vibration | Switch | Toggle vibration preference | Implemented |
 | `createReminder.save.button` | Create | Save reminder | Button | Validate and save mock reminder | Implemented |
 | `createReminder.cancel.button` | Create | Cancel | Button | Discard changes and go back | Implemented |
-| `reminders.search.input` | List | Search | TextInput | Filter reminders locally | Planned |
-| `reminders.filter.all` | List | All filter | Button | Show all reminders | Planned |
-| `reminders.filter.active` | List | Active filter | Button | Show active reminders | Planned |
-| `reminders.filter.waiting` | List | Waiting filter | Button | Show waiting reminders | Planned |
-| `reminders.filter.triggered` | List | Triggered filter | Button | Show triggered reminders | Planned |
-| `reminders.filter.completed` | List | Completed filter | Button | Show completed reminders | Planned |
+| `reminders.search.input` | List | Search | TextInput | Filter reminders locally | Implemented |
+| `reminders.filter.all` | List | All filter | Button | Show all reminders | Implemented |
+| `reminders.filter.active` | List | Active filter | Button | Show active reminders | Implemented |
+| `reminders.filter.waiting` | List | Waiting filter | Button | Show waiting reminders | Implemented |
+| `reminders.filter.triggered` | List | Triggered filter | Button | Show triggered reminders | Implemented |
+| `reminders.filter.completed` | List | Completed filter | Button | Show completed reminders | Implemented |
 | `reminderDetail.edit.button` | Detail | Edit | Button | Open edit form | Implemented |
 | `reminderDetail.complete.button` | Detail | Complete | Button | Mark reminder as completed (irreversible) | Implemented |
 | `reminderDetail.delete.button` | Detail | Delete | Button | Open confirmation | Implemented |
 | `reminderDetail.delete.confirm` | Detail | Confirm delete | Button | Delete reminder | Implemented |
-| `settings.notifications.enabled.switch` | Settings | Notifications | Switch | Toggle notification preference | Planned |
-| `settings.notifications.sound.switch` | Settings | Sound | Switch | Toggle sound preference | Planned |
-| `settings.notifications.vibration.switch` | Settings | Vibration | Switch | Toggle vibration preference | Planned |
+| `settings.notifications.enabled.switch` | Settings | Notifications | Switch | Toggle notification preference | Implemented |
+| `settings.notifications.sound.switch` | Settings | Sound | Switch | Toggle sound preference | Implemented |
+| `settings.notifications.vibration.switch` | Settings | Vibration | Switch | Toggle vibration preference | Implemented |
+| `settings.permissions.openSystemSettings` | Settings | Open system settings | Button | Open device location settings | Implemented |
 
 For dynamic reminder IDs, use the stable reminder UUID in the generated identifier and document how Maestro will select the current fixture.
 
