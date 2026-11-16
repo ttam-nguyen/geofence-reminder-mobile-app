@@ -6,7 +6,7 @@ import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
 import { ReminderCard } from "../components/ReminderCard";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { Colors, Spacing, Typography, BorderRadius } from "../theme";
-import { store, getStoreVersion } from "../stores/reminderStore";
+import { store, getStoreVersion, storeReady } from "../stores/reminderStore";
 import { useFocusEffect } from "@react-navigation/native";
 
 // Re-export for use in other screens.
@@ -36,6 +36,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
       let cancelled = false;
       async function loadReminders() {
         setLoading(true);
+        await storeReady;
         const items = store.findAll();
         if (!cancelled) {
           setReminders(items);

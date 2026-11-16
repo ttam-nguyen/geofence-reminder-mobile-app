@@ -69,7 +69,7 @@ async function seed(): Promise<void> {
 }
 
 // Seed on first import (only runs once).
-seed().catch(() => {
+export const storeReady = seed().catch(() => {
   /* ignore seeding errors */
 });
 

@@ -48,6 +48,7 @@ function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList
           backgroundColor: Colors.surface,
           borderTopColor: Colors.borderGlass,
           borderTopWidth: 1,
+          marginBottom: 10,
         },
         tabBarLabelStyle: {
           fontSize: 12,
