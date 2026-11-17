@@ -2,6 +2,12 @@
 
 Use this file to record decisions that affect architecture, scope, or product behavior. Newest entries first.
 
+## 2026-11-16 — Phase 5: SQLite persistence via @op-engineering/op-sqlite
+
+Decision: Use `@op-engineering/op-sqlite` v15.x for durable offline persistence. Replaces `InMemoryReminderRepository` with `SQLiteReminderRepository`. Schema uses a single `reminders` table with `INSERT OR REPLACE` for upsert semantics (preserves `createdAt`). Versioning via `PRAGMA user_version`. Library is JSI-based, New Architecture compatible, no extra native dependencies.
+
+Related: `src/models/sqliteAdapter.ts` implements full `ReminderRepository` interface. `src/stores/reminderStore.ts` delegates to `SQLiteReminderRepository` with fallback to in-memory when OP-SQLite is unavailable.
+
 ## 2026-11-16 — react-native-maps removed, MapScreen as placeholder
 
 Decision: `react-native-maps` was installed but cannot link its native module (`RNMapsAirModule`) on this build environment. Removed the dependency and replaced MapScreen with a static placeholder listing reminder coordinates, status, and radius — matching the plan's original intent of "visual placeholder; no live map dependency." Live map integration is deferred until Phase 8 (native geofencing) when a compatible library or custom solution is evaluated.

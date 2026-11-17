@@ -1,11 +1,12 @@
 // Map screen — static placeholder showing reminder coordinates and status.
 // Live map integration is deferred until a native-compatible library is available.
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView as SafeArea } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
-import { store } from '../stores/reminderStore';
+import { store, storeReady } from '../stores/reminderStore';
+import { useFocusEffect } from '@react-navigation/native';
 import { Reminder, ReminderStatus } from '../types/Reminder';
 
 const STATUS_LABELS: Record<ReminderStatus, string> = {
@@ -61,7 +62,24 @@ function ReminderRow({ reminder }: { reminder: Reminder }) {
 }
 
 export function MapScreen() {
-  const [reminders] = useState<Reminder[]>(store.findAll());
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      async function loadReminders() {
+        await storeReady;
+        const items = await store.findAll();
+        if (!cancelled) {
+          setReminders(items);
+        }
+      }
+      loadReminders();
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   const relevantReminders = useMemo(
     () => reminders.filter(r => isRelevantStatus(r.status)),

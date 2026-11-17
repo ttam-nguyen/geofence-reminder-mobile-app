@@ -83,45 +83,49 @@ export function CreateReminderScreen(props: Props) {
     const radiusMeters = clampRadius(200);
     const now = new Date().toISOString();
 
-    if (editing && initialReminder) {
-      // Update existing reminder.
-      const updated: Reminder = {
-        ...initialReminder,
-        title: title.trim(),
-        description: description || null,
-        latitude: latitude ?? initialReminder.latitude,
-        longitude: longitude ?? initialReminder.longitude,
-        locationName: locationName || initialReminder.locationName,
-        radiusMeters,
-        notificationSoundEnabled: soundEnabled,
-        notificationVibrationEnabled: vibrationEnabled,
-        updatedAt: now,
-        locationSource: initialReminder.locationSource ?? 'current',
-      };
-      await store.save(updated);
-    } else {
-      // Create new reminder.
-      const newReminder: Reminder = {
-        id: `reminder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        title: title.trim(),
-        description: description || null,
-        latitude: latitude ?? 0,
-        longitude: longitude ?? 0,
-        locationName,
-        radiusMeters,
-        status: ReminderStatus.DRAFT,
-        notificationSoundEnabled: soundEnabled,
-        notificationVibrationEnabled: vibrationEnabled,
-        createdAt: now,
-        updatedAt: now,
-        triggeredAt: null,
-        completedAt: null,
-        locationSource: 'current',
-      };
-      await store.save(newReminder);
-    }
+    try {
+      if (editing && initialReminder) {
+        // Update existing reminder.
+        const updated: Reminder = {
+          ...initialReminder,
+          title: title.trim(),
+          description: description || null,
+          latitude: latitude ?? initialReminder.latitude,
+          longitude: longitude ?? initialReminder.longitude,
+          locationName: locationName || initialReminder.locationName,
+          radiusMeters,
+          notificationSoundEnabled: soundEnabled,
+          notificationVibrationEnabled: vibrationEnabled,
+          updatedAt: now,
+          locationSource: initialReminder.locationSource ?? 'current',
+        };
+        await store.save(updated);
+      } else {
+        // Create new reminder.
+        const newReminder: Reminder = {
+          id: `reminder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          title: title.trim(),
+          description: description || null,
+          latitude: latitude ?? 0,
+          longitude: longitude ?? 0,
+          locationName,
+          radiusMeters,
+          status: ReminderStatus.DRAFT,
+          notificationSoundEnabled: soundEnabled,
+          notificationVibrationEnabled: vibrationEnabled,
+          createdAt: now,
+          updatedAt: now,
+          triggeredAt: null,
+          completedAt: null,
+          locationSource: 'current',
+        };
+        await store.save(newReminder);
+      }
 
-    navigation.goBack();
+      navigation.goBack();
+    } catch (err) {
+      console.error('[CreateReminderScreen] Save failed:', err);
+    }
   };
 
   return (

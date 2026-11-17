@@ -30,10 +30,17 @@ export function ReminderDetailScreen({ navigation, route }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      const latest = store.findById(route.params.reminder.id);
-      if (latest) {
-        setReminder(latest);
+      let cancelled = false;
+      async function loadReminder() {
+        const latest = await store.findById(route.params.reminder.id);
+        if (!cancelled && latest) {
+          setReminder(latest);
+        }
       }
+      loadReminder();
+      return () => {
+        cancelled = true;
+      };
     }, [route.params.reminder.id]),
   );
 

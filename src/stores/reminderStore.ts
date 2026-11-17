@@ -1,12 +1,19 @@
 // Reminder store — singleton in-memory repository for the current session.
 // Before Phase 8 (SQLite), this provides persistence across screen navigation.
 
-import { InMemoryReminderRepository, ReminderRepository } from "../models/repository";
+import { ReminderRepository, InMemoryReminderRepository } from "../models/repository";
+import { SQLiteReminderRepository } from "../models/sqliteAdapter";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { determineInitialStatus } from "../models/initialStatus";
 
 /** Singleton repository instance shared across all screens. */
-const delegate: ReminderRepository = new InMemoryReminderRepository();
+let delegate: ReminderRepository;
+try {
+  delegate = new SQLiteReminderRepository();
+} catch (err) {
+  console.warn('[Store] OP-SQLite unavailable, falling back to in-memory store:', err);
+  delegate = new InMemoryReminderRepository();
+}
 
 /** Version counter — increments on every save/delete. */
 let _version = 0;

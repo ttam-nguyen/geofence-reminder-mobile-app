@@ -37,7 +37,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
       async function loadReminders() {
         setLoading(true);
         await storeReady;
-        const items = store.findAll();
+        const items = await store.findAll();
         if (!cancelled) {
           setReminders(items);
           setLoading(false);
@@ -50,8 +50,8 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
     }, []),
   );
 
-  const handleCardPress = (id: string) => {
-    const reminder = store.findById(id);
+  const handleCardPress = async (id: string) => {
+    const reminder = await store.findById(id);
     if (reminder && onNavigateToDetail) {
       onNavigateToDetail(reminder);
     }
@@ -82,8 +82,8 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
     return "";
   };
 
-  const handleOverflow = (id: string, action: "edit" | "complete" | "delete") => {
-    const reminder = store.findById(id);
+  const handleOverflow = async (id: string, action: "edit" | "complete" | "delete") => {
+    const reminder = await store.findById(id);
     if (!reminder) return;
 
     if (action === "edit") {
@@ -93,19 +93,15 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
         { text: "Cancel", style: "cancel" },
         {
           text: "Complete",
-          onPress: () => {
+          onPress: async () => {
             const updated: Reminder = {
               ...reminder,
               status: ReminderStatus.COMPLETED,
               completedAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             };
-            store
-              .save(updated)
-              .then(() => {
-                setReminders(store.findAll()); // <--- Refresh list state
-              })
-              .catch(() => {});
+            await store.save(updated);
+            setReminders(await store.findAll()); // <--- Refresh list state
           },
         },
       ]);
@@ -115,13 +111,9 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => {
-            store
-              .deleteById(id)
-              .then(() => {
-                setReminders(store.findAll()); // <--- Refresh list state
-              })
-              .catch(() => {});
+          onPress: async () => {
+            await store.deleteById(id);
+            setReminders(await store.findAll());
           },
         },
       ]);
