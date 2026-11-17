@@ -1,6 +1,6 @@
 // SQLite-backed reminder repository using OP-SQLite.
 
-import { open, type QueryResult } from '@op-engineering/op-sqlite';
+import { open, type QueryResult, type Scalar } from '@op-engineering/op-sqlite';
 import { ReminderRepository } from './repository';
 import { Reminder, ReminderStatus } from '../types/Reminder';
 
@@ -38,7 +38,7 @@ async function ensureSchema(db: ReturnType<typeof open>): Promise<void> {
 }
 
 /** Convert boolean fields to SQLite INTEGER (0/1). */
-function toRow(r: Reminder): Record<string, string | number> {
+function toRow(r: Reminder): Record<string, Scalar> {
   return {
     id: r.id,
     title: r.title,
@@ -59,7 +59,7 @@ function toRow(r: Reminder): Record<string, string | number> {
 }
 
 /** Convert SQLite INTEGER fields back to boolean. */
-function toReminder(row: Record<string, string | number>): Reminder {
+function toReminder(row: Record<string, Scalar>): Reminder {
   return {
     id: row.id as string,
     title: row.title as string,

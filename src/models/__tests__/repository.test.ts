@@ -42,7 +42,7 @@ describe('InMemoryReminderRepository', () => {
         longitude: -74.006,
       }));
 
-      expect(repo.findById('non-existent')).toBeUndefined();
+      expect(await repo.findById('non-existent')).toBeUndefined();
     });
 
     it('returns the reminder for an existing ID', async () => {
@@ -55,7 +55,7 @@ describe('InMemoryReminderRepository', () => {
       });
       await repo.save(reminder);
 
-      const found = repo.findById('test-1');
+      const found = await repo.findById('test-1');
       expect(found).toBeDefined();
       expect(found?.id).toBe('test-1');
       expect(found?.title).toBe('Test Reminder');
@@ -67,7 +67,7 @@ describe('InMemoryReminderRepository', () => {
       await repo.save(makeReminder({ id: '1', title: 'Reminder 1' }));
       await repo.save(makeReminder({ id: '2', title: 'Reminder 2', status: ReminderStatus.ARMED }));
 
-      const all = repo.findAll();
+      const all = await repo.findAll();
       expect(all).toHaveLength(2);
     });
 
@@ -75,13 +75,13 @@ describe('InMemoryReminderRepository', () => {
       await repo.save(makeReminder({ id: '1', title: 'Reminder 1' }));
       await repo.save(makeReminder({ id: '2', title: 'Reminder 2', status: ReminderStatus.ARMED }));
 
-      const armed = repo.findAll(ReminderStatus.ARMED);
+      const armed = await repo.findAll(ReminderStatus.ARMED);
       expect(armed).toHaveLength(1);
       expect(armed[0]?.status).toBe(ReminderStatus.ARMED);
     });
 
-    it('returns empty array when no reminders match', () => {
-      const result = repo.findAll(ReminderStatus.TRIGGERED);
+    it('returns empty array when no reminders match', async () => {
+      const result = await repo.findAll(ReminderStatus.TRIGGERED);
       expect(result).toHaveLength(0);
     });
   });
@@ -115,7 +115,7 @@ describe('InMemoryReminderRepository', () => {
     it('updates updatedAt on save', async () => {
       await repo.save(makeReminder({ id: 'update-1', title: 'Reminder' }));
 
-      const first = repo.findById('update-1');
+      const first = await repo.findById('update-1');
       await new Promise<void>((resolve) => setTimeout(() => resolve(), 10));
 
       await repo.save(makeReminder({
@@ -124,7 +124,7 @@ describe('InMemoryReminderRepository', () => {
         status: ReminderStatus.ARMED,
       }));
 
-      const second = repo.findById('update-1');
+      const second = await repo.findById('update-1');
       expect(new Date(second?.updatedAt ?? '').getTime()).toBeGreaterThan(
         new Date(first?.updatedAt ?? '').getTime(),
       );
@@ -137,7 +137,7 @@ describe('InMemoryReminderRepository', () => {
 
       const result = await repo.deleteById('del-1');
       expect(result).toBe(true);
-      expect(repo.findById('del-1')).toBeUndefined();
+      expect(await repo.findById('del-1')).toBeUndefined();
     });
 
     it('returns false for non-existent reminder', async () => {
@@ -152,7 +152,7 @@ describe('InMemoryReminderRepository', () => {
       await repo.save(makeReminder({ id: 'completed-1', title: 'Completed', status: ReminderStatus.COMPLETED }));
       await repo.save(makeReminder({ id: 'cancelled-1', title: 'Cancelled', status: ReminderStatus.CANCELLED }));
 
-      const active = repo.findActive();
+      const active = await repo.findActive();
       expect(active).toHaveLength(1);
       expect(active[0]?.id).toBe('active-1');
     });
@@ -171,7 +171,7 @@ describe('InMemoryReminderRepository', () => {
         await repo.save(makeReminder({ id: `active-${i}`, title: `Active ${statuses[i]}`, status: statuses[i] }));
       }
 
-      const active = repo.findActive();
+      const active = await repo.findActive();
       expect(active).toHaveLength(statuses.length);
     });
   });
@@ -182,7 +182,7 @@ describe('InMemoryReminderRepository', () => {
       await repo.save(makeReminder({ id: 'd-2', title: 'Draft 2' }));
       await repo.save(makeReminder({ id: 'a-1', title: 'Armed', status: ReminderStatus.ARMED }));
 
-      const drafts = repo.findByStatus(ReminderStatus.DRAFT);
+      const drafts = await repo.findByStatus(ReminderStatus.DRAFT);
       expect(drafts).toHaveLength(2);
     });
   });
@@ -194,8 +194,8 @@ describe('InMemoryReminderRepository', () => {
 
       await repo.clear();
 
-      expect(repo.findAll()).toHaveLength(0);
-      expect(repo.findById('c-1')).toBeUndefined();
+      expect(await repo.findAll()).toHaveLength(0);
+      expect(await repo.findById('c-1')).toBeUndefined();
     });
   });
 });
