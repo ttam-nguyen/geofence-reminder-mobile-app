@@ -118,6 +118,29 @@ When adding **any** new npm package or dependency, perform these two steps in or
 
 These steps ensure native modules are properly linked and the Android build is consistent. Do not skip either step.
 
+## Google Maps API Key (Android)
+
+`react-native-maps` on Android requires the Google Maps Android SDK, which in turn requires a Google Maps API key injected at build time.
+
+### Setup
+
+1. Obtain a Google Maps API key from the [Google Cloud Console](https://console.cloud.google.com/google/maps-apis).
+2. Enable **Maps SDK for Android** for the project.
+3. Edit `android/gradle.properties` and replace the placeholder:
+   ```properties
+   GOOGLE_MAPS_API_KEY=your_actual_api_key_here
+   ```
+4. Rebuild: `cd android && ./gradlew clean && cd .. && ./gradlew app:assembleDebug`
+
+### How it works
+
+- `android/gradle.properties` holds the key as `GOOGLE_MAPS_API_KEY`.
+- `android/app/build.gradle:37` reads it via `project.hasProperty('GOOGLE_MAPS_API_KEY')` and passes it as a manifest placeholder.
+- `android/app/src/main/AndroidManifest.xml:18` references it as `${GOOGLE_MAPS_API_KEY}`.
+- `android/gradle.properties` is listed in `.gitignore` — the key never enters version control.
+
+> **Security:** Never commit `android/gradle.properties` with a real API key. Use the placeholder value (`YOUR_GOOGLE_MAPS_API_KEY`) in any shared copies.
+
 ## Gate 0 Status: ✅ PASSED
 
 Clean template typechecks, passes tests, and builds/runs on **both** iOS Simulator and Android 15 emulator. Ready for Phase 1 (UI scaffold with mock data).

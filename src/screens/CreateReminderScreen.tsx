@@ -1,6 +1,6 @@
 // CreateReminder screen — form to create or edit a reminder.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,14 +13,19 @@ import {
   Switch,
   KeyboardAvoidingView,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import Geolocation from 'react-native-geolocation-service';
+import type { Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
-import { Reminder, ReminderStatus } from '../types/Reminder';
+import { Reminder, ReminderStatus, LocationSource } from '../types/Reminder';
 import { SafeAreaView as SafeArea } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 import { store } from '../stores/reminderStore';
 import { validateReminderPayload, clampRadius } from '../models/validation';
+import { useLocationPermission } from '../hooks/useLocationPermission';
+import { reverseGeocode } from '../utils/geocoding';
 
 interface CreateReminderScreenProps {
   onCancel?: () => void;
@@ -33,6 +38,13 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CreateReminder'> &
 
 const isEditing = (props: Props): boolean => {
   return 'reminder' in props.route.params && !!props.route.params.reminder;
+};
+
+const DEFAULT_REGION: Region = {
+  latitude: 0,
+  longitude: 0,
+  latitudeDelta: 0.1,
+  longitudeDelta: 0.1,
 };
 
 export function CreateReminderScreen(props: Props) {
@@ -50,20 +62,80 @@ export function CreateReminderScreen(props: Props) {
   const [longitude, setLongitude] = useState<number | undefined>(initialReminder?.longitude);
   const [locationName, setLocationName] = useState<string | null>(initialReminder?.locationName ?? null);
 
+  // Pin mode state
+  const [locationMode, setLocationMode] = useState<'current' | 'pin'>('current');
+  const [mapRegion, setMapRegion] = useState<Region | null>(null);
+  const [pinCoordinate, setPinCoordinate] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  // Location permission
+  const { status: locationStatus, requestPermission, openSettings } = useLocationPermission();
+
+  // Auto-fetch current location on new reminder creation (only if no location set yet).
   useEffect(() => {
-    // Try to get current location when creating a new reminder.
-    if (!editing && !latitude) {
-      const nav = (globalThis as any).navigator;
-      nav?.geolocation?.getCurrentPosition(
-        (pos: { coords: { latitude: number; longitude: number } }) => {
+    if (!editing && !latitude && locationStatus === 'granted') {
+      Geolocation.getCurrentPosition(
+        (pos) => {
           setLatitude(pos.coords.latitude);
           setLongitude(pos.coords.longitude);
+          setLocationName('Current location');
         },
-        () => { /* silently ignore geolocation errors */ },
-        { enableHighAccuracy: true, timeout: 5000 },
+        (err) => {
+          console.error('[CreateReminderScreen] Geolocation error:', err);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
       );
     }
-  }, [editing, latitude]);
+  }, [editing, latitude, locationStatus]);
+
+  const handleCurrentLocation = useCallback(async () => {
+    // If permission not yet granted, request it first.
+    if (locationStatus !== 'granted') {
+      await requestPermission();
+    }
+
+    Geolocation.getCurrentPosition(
+      async (pos) => {
+        setLatitude(pos.coords.latitude);
+        setLongitude(pos.coords.longitude);
+        setLocationName('Current location');
+
+        // Reverse geocode to get place name.
+        const address = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+        if (address) {
+          setLocationName(address);
+        }
+
+        // Center map on current location.
+        setMapRegion({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+      },
+      (err) => {
+        console.error('[CreateReminderScreen] Geolocation error:', err);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  }, [locationStatus, requestPermission]);
+
+  const handleMapPress = useCallback(
+    (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
+      const coord = e.nativeEvent.coordinate;
+      setPinCoordinate(coord);
+      setLatitude(coord.latitude);
+      setLongitude(coord.longitude);
+
+      // Reverse geocode the selected pin.
+      reverseGeocode(coord.latitude, coord.longitude).then((address) => {
+        if (address) {
+          setLocationName(address);
+        }
+      });
+    },
+    [],
+  );
 
   const handleSave = async () => {
     // Skip lat/lon validation when not yet available (geolocation pending).
@@ -97,11 +169,12 @@ export function CreateReminderScreen(props: Props) {
           notificationSoundEnabled: soundEnabled,
           notificationVibrationEnabled: vibrationEnabled,
           updatedAt: now,
-          locationSource: initialReminder.locationSource ?? 'current',
+          locationSource: locationMode === 'pin' ? 'pin' : (initialReminder.locationSource ?? 'current'),
         };
         await store.save(updated);
       } else {
         // Create new reminder.
+        const locationSource: LocationSource = locationMode === 'pin' ? 'pin' : 'current';
         const newReminder: Reminder = {
           id: `reminder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           title: title.trim(),
@@ -117,7 +190,7 @@ export function CreateReminderScreen(props: Props) {
           updatedAt: now,
           triggeredAt: null,
           completedAt: null,
-          locationSource: 'current',
+          locationSource,
         };
         await store.save(newReminder);
       }
@@ -127,6 +200,8 @@ export function CreateReminderScreen(props: Props) {
       console.error('[CreateReminderScreen] Save failed:', err);
     }
   };
+
+  const isLocationDisabled = locationStatus === 'denied' || locationStatus === 'restricted';
 
   return (
     <View style={styles.container}>
@@ -183,8 +258,32 @@ export function CreateReminderScreen(props: Props) {
               />
             </View>
 
+            {/* Location section */}
             <View style={styles.locationSection}>
               <Text style={Typography.bodySmall}>Location</Text>
+
+              {/* Permission status banner */}
+              {locationStatus === 'denied' && (
+                <View style={styles.permissionBanner}>
+                  <Text style={[Typography.caption, { color: Colors.danger }]}>
+                    Location access denied. Please enable location in Settings.
+                  </Text>
+                  <Pressable onPress={openSettings} style={styles.settingsButton}>
+                    <Text style={[Typography.caption, { color: Colors.infoBlue }]}>Open Settings</Text>
+                  </Pressable>
+                </View>
+              )}
+              {locationStatus === 'restricted' && (
+                <Text style={[Typography.caption, { color: Colors.waitingAmber }]}>
+                  Location access restricted by device policy.
+                </Text>
+              )}
+              {locationStatus === 'unavailable' && !editing && (
+                <Text style={[Typography.caption, { color: Colors.textMuted }]}>
+                  Location services unavailable. Use pin selection below.
+                </Text>
+              )}
+
               <View style={styles.locationInfo}>
                 <Text style={Typography.caption}>200m radius (fixed)</Text>
                 {latitude && longitude ? (
@@ -196,27 +295,79 @@ export function CreateReminderScreen(props: Props) {
                   <Text style={Typography.caption}>No location set</Text>
                 )}
               </View>
-              <View style={styles.locationButtons}>
+
+              {/* Mode toggle */}
+              <View style={styles.modeToggle}>
                 <Pressable
                   testID="createReminder.location.current.button"
                   accessibilityLabel="Use current location"
                   accessibilityRole="button"
-                  style={styles.locationButton}
+                  style={[
+                    styles.modeButton,
+                    locationMode === 'current' && styles.modeButtonActive,
+                  ]}
                   onPress={() => {
-                    const nav = (globalThis as any).navigator;
-                    nav?.geolocation?.getCurrentPosition(
-                      (pos: { coords: { latitude: number; longitude: number } }) => {
-                        setLatitude(pos.coords.latitude);
-                        setLongitude(pos.coords.longitude);
-                      },
-                      () => {},
-                      { enableHighAccuracy: true, timeout: 5000 },
-                    );
+                    setLocationMode('current');
+                    setPinCoordinate(null);
+                  }}
+                  disabled={isLocationDisabled}
+                >
+                  <Text style={[
+                    styles.modeButtonText,
+                    isLocationDisabled && { opacity: 0.5 },
+                  ]}>
+                    Current Location
+                  </Text>
+                </Pressable>
+                <Pressable
+                  testID="createReminder.location.pin.button"
+                  accessibilityLabel="Drop pin on map"
+                  accessibilityRole="button"
+                  style={[
+                    styles.modeButton,
+                    locationMode === 'pin' && styles.modeButtonActive,
+                  ]}
+                  onPress={() => {
+                    setLocationMode('pin');
+                    setPinCoordinate(null);
                   }}
                 >
-                  <Text style={styles.locationButtonText}>Current Location</Text>
+                  <Text style={styles.modeButtonText}>Drop Pin</Text>
                 </Pressable>
               </View>
+
+              {/* Inline map for pin mode */}
+              {locationMode === 'pin' && (
+                <View style={styles.inlineMapContainer}>
+                  <MapView
+                    provider={Platform.OS === 'android' ? PROVIDER_DEFAULT : undefined}
+                    style={styles.inlineMap}
+                    initialRegion={mapRegion ?? DEFAULT_REGION}
+                    onRegionChangeComplete={(newRegion: Region) => setMapRegion(newRegion)}
+                    onPress={handleMapPress}
+                  >
+                    {pinCoordinate && (
+                      <Marker
+                        coordinate={pinCoordinate}
+                        title="Selected"
+                        pinColor={Colors.signalRed}
+                      />
+                    )}
+                  </MapView>
+                </View>
+              )}
+
+              {/* Current location button (non-pin mode) */}
+              {locationMode === 'current' && !isLocationDisabled && (
+                <Pressable
+                  testID="createReminder.location.getCurrent.button"
+                  accessibilityLabel="Get current location"
+                  style={styles.getLocationButton}
+                  onPress={handleCurrentLocation}
+                >
+                  <Text style={styles.getLocationButtonText}>Get Current Location</Text>
+                </Pressable>
+              )}
             </View>
 
             <View style={styles.section}>
@@ -323,11 +474,12 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  locationButtons: {
+  modeToggle: {
     flexDirection: 'row',
     gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
-  locationButton: {
+  modeButton: {
     flex: 1,
     backgroundColor: Colors.surfaceGlassStrong,
     borderRadius: BorderRadius.sm,
@@ -336,9 +488,47 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderGlass,
     alignItems: 'center',
   },
-  locationButtonText: {
+  modeButtonActive: {
+    borderColor: Colors.signalRed,
+    backgroundColor: Colors.signalRedSoft,
+  },
+  modeButtonText: {
     ...Typography.bodySmall,
     color: Colors.signalRed,
+  },
+  getLocationButton: {
+    backgroundColor: Colors.surfaceGlassStrong,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+    alignItems: 'center',
+  },
+  getLocationButtonText: {
+    ...Typography.bodySmall,
+    color: Colors.signalRed,
+  },
+  inlineMapContainer: {
+    height: 200,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
+  },
+  inlineMap: {
+    width: '100%',
+    height: '100%',
+  },
+  permissionBanner: {
+    backgroundColor: Colors.signalRedSoft,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingsButton: {
+    paddingHorizontal: Spacing.sm,
   },
   section: {
     marginBottom: Spacing.md,

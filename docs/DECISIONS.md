@@ -2,6 +2,20 @@
 
 Use this file to record decisions that affect architecture, scope, or product behavior. Newest entries first.
 
+## 2026-11-17 — Phase 6: Map library compatibility spike
+
+Decision: `react-native-maps` v1.29.11 **successfully links** on both iOS (CocoaPods) and Android (Gradle). This resolves the Phase 4 blocker where it previously failed. Chose `react-native-maps` over `@react-native-mapbox-gl/maps` (no need for API tokens, simpler dependency footprint).
+
+- Android: `./gradlew app:assembleDebug` — BUILD SUCCESSFUL (2m 6s, 214 tasks executed)
+- iOS: `bundle exec pod install` — 94 dependencies (up from 92, +maps +geolocation)
+- Location permissions: `react-native-geolocation-service` installed as lightweight permission handler
+- AndroidManifest.xml updated with `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`
+- Info.plist already had `NSLocationWhenInUseUsageDescription` (verified)
+
+Related: MapScreen rewritten with real `MapView` + `Marker`. CreateReminderScreen updated with current-location button (geolocation service), pin-drop mode with inline map, reverse geocoding via Nominatim (free, rate-limited), and permission-aware UI banners.
+
+## 2026-11-16 — Phase 5: SQLite persistence via @op-engineering/op-sqlite
+
 ## 2026-11-16 — Phase 5: SQLite persistence via @op-engineering/op-sqlite
 
 Decision: Use `@op-engineering/op-sqlite` v15.x for durable offline persistence. Replaces `InMemoryReminderRepository` with `SQLiteReminderRepository`. Schema uses a single `reminders` table with `INSERT OR REPLACE` for upsert semantics (preserves `createdAt`). Versioning via `PRAGMA user_version`. Library is JSI-based, New Architecture compatible, no extra native dependencies.

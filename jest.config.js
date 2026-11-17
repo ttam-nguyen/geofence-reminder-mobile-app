@@ -7,5 +7,7 @@ module.exports = {
     '^@op-engineering/op-sqlite$': '<rootDir>/__mocks__/@op-engineering/op-sqlite.js',
     '^sqliteAdapter$': '<rootDir>/__mocks__/sqliteAdapterMock.js',
     '^../stores/reminderStore$': '<rootDir>/__mocks__/reminderStoreMock.js',
+    '^react-native-maps$': '<rootDir>/__mocks__/react-native-maps.js',
+    '^react-native-geolocation-service$': '<rootDir>/__mocks__/react-native-geolocation-service.js',
   },
 };

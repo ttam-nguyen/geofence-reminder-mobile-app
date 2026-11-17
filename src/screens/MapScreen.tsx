@@ -1,8 +1,8 @@
-// Map screen — static placeholder showing reminder coordinates and status.
-// Live map integration is deferred until a native-compatible library is available.
+// Map screen — interactive map view showing reminder locations with markers.
 
-import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView as SafeArea } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 import { store, storeReady } from '../stores/reminderStore';
@@ -39,30 +39,21 @@ function isRelevantStatus(status: ReminderStatus): boolean {
     status !== ReminderStatus.DELETED;
 }
 
-function formatCoord(value: number | null): string {
-  if (value === null) return '—';
-  return value.toFixed(4);
-}
-
-function ReminderRow({ reminder }: { reminder: Reminder }) {
-  return (
-    <View style={styles.row}>
-      <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[reminder.status] }]} />
-      <View style={styles.rowContent}>
-        <Text style={Typography.body}>{reminder.title}</Text>
-        <Text style={Typography.caption}>
-          {formatCoord(reminder.latitude)}, {formatCoord(reminder.longitude)}
-        </Text>
-        <Text style={[Typography.caption, { color: STATUS_COLORS[reminder.status] }]}>
-          {STATUS_LABELS[reminder.status]}
-        </Text>
-      </View>
-    </View>
-  );
-}
+const DEFAULT_REGION = {
+  latitude: 0,
+  longitude: 0,
+  latitudeDelta: 0.1,
+  longitudeDelta: 0.1,
+};
 
 export function MapScreen() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [region, setRegion] = useState<{
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+  } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -72,6 +63,15 @@ export function MapScreen() {
         const items = await store.findAll();
         if (!cancelled) {
           setReminders(items);
+          const active = items.filter(r => isRelevantStatus(r.status));
+          if (active.length > 0) {
+            setRegion({
+              latitude: active[0].latitude,
+              longitude: active[0].longitude,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            });
+          }
         }
       }
       loadReminders();
@@ -81,36 +81,37 @@ export function MapScreen() {
     }, []),
   );
 
-  const relevantReminders = useMemo(
-    () => reminders.filter(r => isRelevantStatus(r.status)),
-    [reminders],
-  );
+  const relevantReminders = reminders.filter(r => isRelevantStatus(r.status));
 
   return (
     <SafeArea style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={Typography.h2}>Map</Text>
       </View>
-      <View style={styles.placeholder}>
-        <Text style={[Typography.bodySmall, { marginBottom: Spacing.md }]}>
-          Interactive map view is not yet available.
-        </Text>
-        <Text style={[Typography.caption, { marginBottom: Spacing.sm }]}>
-          Below are your active reminders with their coordinates and status.
-        </Text>
-      </View>
 
-      <FlatList
-        data={relevantReminders}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => <ReminderRow reminder={item} />}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={Typography.bodySmall}>No active reminders to display.</Text>
-          </View>
-        }
-      />
+      {region ? (
+        <MapView
+          provider={Platform.OS === 'android' ? PROVIDER_DEFAULT : undefined}
+          style={styles.map}
+          initialRegion={{ ...DEFAULT_REGION, ...region }}
+        >
+          {relevantReminders.map(r => (
+            <Marker
+              key={r.id}
+              coordinate={{ latitude: r.latitude, longitude: r.longitude }}
+              title={r.title}
+              description={STATUS_LABELS[r.status]}
+              pinColor={STATUS_COLORS[r.status]}
+            />
+          ))}
+        </MapView>
+      ) : (
+        <View style={styles.placeholder}>
+          <Text style={[Typography.bodySmall, { marginBottom: Spacing.md }]}>
+            No active reminders to display.
+          </Text>
+        </View>
+      )}
     </SafeArea>
   );
 }
@@ -124,29 +125,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  placeholder: {
-    paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  list: {
-    paddingHorizontal: Spacing.md,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-  },
-  rowContent: {
+  map: {
     flex: 1,
-    marginLeft: Spacing.sm,
   },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  emptyState: {
-    paddingVertical: Spacing.xxl,
+  placeholder: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
 });
