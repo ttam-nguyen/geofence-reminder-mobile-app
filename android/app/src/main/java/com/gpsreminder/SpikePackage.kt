@@ -12,6 +12,7 @@ import com.facebook.react.uimanager.ViewManager
  * This package will be REMOVED after Task 8.1 passes and replaced by the
  * full GeofencingPackage (Task 8.2/8.3).
  */
+@Suppress("DEPRECATION")
 class SpikePackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
         return listOf(SpikeModule(reactContext))

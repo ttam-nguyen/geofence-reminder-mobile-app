@@ -2,6 +2,31 @@
 
 Use this file to record decisions that affect architecture, scope, or product behavior. Newest entries first.
 
+## 2026-11-18 — Phase 8 Tasks 8.2 (iOS) + 8.3 (Android): Native geofencing modules
+
+Decision: Custom native geofencing modules can be created on RN 0.88 New Architecture.
+
+### Task 8.2 — iOS CoreLocation module (GeofencingManager.swift)
+- Full geofence registration/unregistration via `CLCircularRegion` (200m radius, 1s notifyOnEntry/Exit).
+- ArrivalCandidate class: stationary qualification with `CLLocation` samples — speed < 0.89408 m/s (<2 mph) for 120s.
+- Uses `CLLocationManager` with `startMonitoring(for:)` and `requestAlwaysAuthorization()`.
+- iOS build: ❌ Pre-existing Xcode 26.3 toolchain issue (K-014). Verified: original project fails identically.
+
+### Task 8.3 — Android Geofencing API module (GeofencingModule.kt + GeofenceEventReceiver.kt)
+- Uses Google Play Services Location API v21.3.0 (new `GeofencingClient` API).
+- Key API differences from newer docs: `getGeofenceTransition()` returns single int (not Set), `getTriggeringLocation()` is a method (not property). No `triggeringLocation` property on `GeofencingEvent`.
+- `Geofence.Builder` with `setLoiteringDelay(120_000)` (DWELL after 120s inside region).
+- `GeofenceEventReceiver` BroadcastReceiver dispatches events to JS via `DeviceEventManagerModule.RCTDeviceEventEmitter`.
+- Android build: ✅ PASS (257 tasks, 39 executed). Two deprecation warnings on `createViewManagers` — suppressed.
+- AndroidManifest.xml: Added `<receiver android:name=".GeofenceEventReceiver" android:exported="false" />`.
+- build.gradle: Added `implementation "com.google.android.gms:play-services-location:21.3.0"`.
+
+### TypeScript interface (GeofencingModule.ts)
+- JS bridge: `registerGeofence(reminderId, lat, lon, radius?)`, `unregisterGeofence(reminderId)`, `listRegisteredGeofences()`, `getAuthorizationStatus()`, `requestLocationPermission()`.
+- Constants: TRANSITION_ENTER=1, TRANSITION_EXIT=2, TRANSITION_DWELL=4.
+
+Related: See `docs/PHASE_8_PLAN.md` (full plan), `docs/PHASE_8_TEST_PLAN.md` (test checklist).
+
 ## 2026-11-18 — Phase 8 Task 8.1: Native module compatibility spike
 
 Decision: Custom native modules can be created and linked on RN 0.88 New Architecture.

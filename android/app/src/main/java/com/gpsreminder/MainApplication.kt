@@ -14,8 +14,8 @@ class MainApplication : Application(), ReactApplication {
       context = applicationContext,
       packageList =
         PackageList(this).packages.apply {
-          // Task 8.1: Register SpikeModule for compatibility verification.
-          add(SpikePackage())
+          // Task 8.3: Register GeofencingModule for Android native geofencing.
+          add(GeofencingPackage())
         },
     )
   }
