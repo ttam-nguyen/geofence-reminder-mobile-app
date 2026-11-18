@@ -2,6 +2,17 @@
 
 Use this file to record decisions that affect architecture, scope, or product behavior. Newest entries first.
 
+## 2026-11-18 — Phase 8 Task 8.1: Native module compatibility spike
+
+Decision: Custom native modules can be created and linked on RN 0.88 New Architecture.
+
+- Android: `SpikeModule.kt` + `SpikePackage.kt` — minimal native module exposing `ping()` and `getPlatform()`. Build: ✅ `./gradlew app:assembleDebug` — BUILD SUCCESSFUL (257 tasks, 37 executed).
+- iOS: `SpikeModule.swift` — Swift native module with same interface. Build: ❌ Pre-existing Xcode 26.3 toolchain issue (`_DarwinFoundation` module not found). Verified: original project (without SpikeModule) fails identically — NOT caused by these changes.
+- TypeScript: `src/native/SpikeModule.ts` — JS interface. Unit tests: ✅ PASS (2/2).
+- Conclusion: Android bridge verified. iOS bridge will be verified once the Xcode toolchain issue (K-014) is resolved. Proceed with Task 8.2 (iOS CoreLocation module) and Task 8.3 (Android Geofencing API) in parallel conceptually, but implement sequentially.
+
+Related: See `docs/PHASE_8_PLAN.md` (full plan), `docs/PHASE_8_TEST_PLAN.md` (test checklist).
+
 ## 2026-11-17 — Phase 6: Map library compatibility spike
 
 Decision: `react-native-maps` v1.29.11 **successfully links** on both iOS (CocoaPods) and Android (Gradle). This resolves the Phase 4 blocker where it previously failed. Chose `react-native-maps` over `@react-native-mapbox-gl/maps` (no need for API tokens, simpler dependency footprint).
