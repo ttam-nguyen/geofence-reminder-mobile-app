@@ -18,6 +18,7 @@ function makeReminder(partial: Partial<Reminder>): Reminder {
     completedAt: partial.completedAt ?? null,
     notificationSoundEnabled: partial.notificationSoundEnabled ?? true,
     notificationVibrationEnabled: partial.notificationVibrationEnabled ?? true,
+    notificationId: partial.notificationId ?? null,
   };
 }
 

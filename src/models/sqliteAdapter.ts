@@ -29,6 +29,7 @@ async function ensureSchema(db: ReturnType<typeof open>): Promise<void> {
         updatedAt TEXT NOT NULL,
         triggeredAt TEXT,
         completedAt TEXT,
+        notificationId TEXT,
         notificationSoundEnabled INTEGER NOT NULL DEFAULT 1,
         notificationVibrationEnabled INTEGER NOT NULL DEFAULT 1
       )
@@ -53,6 +54,7 @@ function toRow(r: Reminder): Record<string, Scalar> {
     updatedAt: r.updatedAt,
     triggeredAt: r.triggeredAt ?? null,
     completedAt: r.completedAt ?? null,
+    notificationId: r.notificationId ?? null,
     notificationSoundEnabled: r.notificationSoundEnabled ? 1 : 0,
     notificationVibrationEnabled: r.notificationVibrationEnabled ? 1 : 0,
   };
@@ -74,6 +76,7 @@ function toReminder(row: Record<string, Scalar>): Reminder {
     updatedAt: row.updatedAt as string,
     triggeredAt: (row.triggeredAt as string) || null,
     completedAt: (row.completedAt as string) || null,
+    notificationId: (row.notificationId as string) || null,
     notificationSoundEnabled: (row.notificationSoundEnabled as number) === 1,
     notificationVibrationEnabled: (row.notificationVibrationEnabled as number) === 1,
   };
@@ -139,12 +142,14 @@ export class SQLiteReminderRepository implements ReminderRepository {
         `INSERT OR REPLACE INTO reminders (
           id, title, description, latitude, longitude, locationName,
           radiusMeters, locationSource, status, createdAt, updatedAt,
-          triggeredAt, completedAt, notificationSoundEnabled, notificationVibrationEnabled
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          triggeredAt, completedAt, notificationId,
+          notificationSoundEnabled, notificationVibrationEnabled
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.id, row.title, row.description, row.latitude, row.longitude,
           row.locationName, row.radiusMeters, row.locationSource, row.status,
           row.createdAt, now, row.triggeredAt, row.completedAt,
+          row.notificationId ?? null,
           row.notificationSoundEnabled, row.notificationVibrationEnabled,
         ],
       );

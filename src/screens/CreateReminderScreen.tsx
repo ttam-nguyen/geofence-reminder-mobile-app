@@ -192,6 +192,7 @@ export function CreateReminderScreen(props: Props) {
           radiusMeters,
           notificationSoundEnabled: soundEnabled,
           notificationVibrationEnabled: vibrationEnabled,
+          notificationId: initialReminder?.notificationId ?? null,
           updatedAt: now,
           locationSource: locationMode === 'pin' ? 'pin' : (initialReminder.locationSource ?? 'current'),
         };
@@ -210,6 +211,7 @@ export function CreateReminderScreen(props: Props) {
           status: ReminderStatus.DRAFT,
           notificationSoundEnabled: soundEnabled,
           notificationVibrationEnabled: vibrationEnabled,
+          notificationId: null,
           createdAt: now,
           updatedAt: now,
           triggeredAt: null,

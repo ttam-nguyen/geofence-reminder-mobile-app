@@ -29,6 +29,7 @@ export interface Reminder {
   updatedAt: string;
   triggeredAt: string | null;
   completedAt: string | null;
+  notificationId: string | null; // notifee notification ID, used for cancel
   notificationSoundEnabled: boolean;
   notificationVibrationEnabled: boolean;
 }

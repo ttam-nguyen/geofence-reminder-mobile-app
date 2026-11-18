@@ -54,6 +54,7 @@ export class InMemoryReminderRepository implements ReminderRepository {
         ...reminder,
         updatedAt: now,
         createdAt: existing.createdAt,
+        notificationId: reminder.notificationId ?? existing.notificationId,
       };
       // Only update triggeredAt if explicitly provided in the reminder
       if (reminder.triggeredAt !== undefined) {

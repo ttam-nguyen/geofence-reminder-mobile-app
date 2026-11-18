@@ -23,6 +23,7 @@ export const mockReminders: Reminder[] = [
     completedAt: null,
     notificationSoundEnabled: true,
     notificationVibrationEnabled: true,
+    notificationId: null,
   },
   {
     id: 'mock-2',
@@ -40,6 +41,7 @@ export const mockReminders: Reminder[] = [
     completedAt: null,
     notificationSoundEnabled: true,
     notificationVibrationEnabled: false,
+    notificationId: null,
   },
   {
     id: 'mock-3',
@@ -57,6 +59,7 @@ export const mockReminders: Reminder[] = [
     completedAt: null,
     notificationSoundEnabled: true,
     notificationVibrationEnabled: true,
+    notificationId: null,
   },
   {
     id: 'mock-4',
@@ -74,5 +77,6 @@ export const mockReminders: Reminder[] = [
     completedAt: null,
     notificationSoundEnabled: true,
     notificationVibrationEnabled: true,
+    notificationId: null,
   },
 ];

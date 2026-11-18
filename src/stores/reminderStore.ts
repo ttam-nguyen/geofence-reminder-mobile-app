@@ -5,6 +5,7 @@ import { ReminderRepository, InMemoryReminderRepository } from "../models/reposi
 import { SQLiteReminderRepository } from "../models/sqliteAdapter";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { determineInitialStatus } from "../models/initialStatus";
+import { notificationService } from "../services/notificationService";
 
 /** Singleton repository instance shared across all screens. */
 let delegate: ReminderRepository;
@@ -37,9 +38,67 @@ function notifyListeners() {
   listeners.forEach(listener => listener());
 }
 
+/** Schedule a notification for an active reminder. */
+async function scheduleReminderNotification(reminder: Reminder): Promise<string | null> {
+  try {
+    const settings = await notificationService.checkPermission();
+    if (settings !== 'authorized') {
+      return null;
+    }
+
+    const body = reminder.description || `Reminder at ${reminder.locationName || 'this location'}`;
+
+    const notificationId = await notificationService.scheduleNotification({
+      id: reminder.id,
+      title: reminder.title,
+      body,
+      data: { reminderId: reminder.id },
+      trigger: 'immediate',
+      android: {
+        channelId: 'gps_reminder_default',
+        sound: reminder.notificationSoundEnabled ? 'default' : null,
+        importance: 3, // HIGH
+      },
+      ios: {
+        sound: reminder.notificationSoundEnabled ? 'default' : null,
+      },
+    });
+
+    // Update the reminder with its notificationId so we can cancel later.
+    const updated = { ...reminder, notificationId, updatedAt: new Date().toISOString() };
+    await delegate.save(updated);
+    return notificationId;
+  } catch (err) {
+    console.warn('[Store] Failed to schedule notification for reminder', reminder.id, err);
+    return null;
+  }
+}
+
+/** Cancel the notification associated with a reminder. */
+async function cancelReminderNotification(reminder: Reminder): Promise<void> {
+  if (reminder.notificationId) {
+    try {
+      await notificationService.cancelNotification(reminder.notificationId);
+    } catch (err) {
+      console.warn('[Store] Failed to cancel notification for reminder', reminder.id, err);
+    }
+  }
+}
+
 /** Save a reminder and bump the version (triggers re-renders). */
 async function save(reminder: Reminder): Promise<Reminder> {
   console.log("[Store] Saving reminder:", reminder);
+
+  // Cancel any existing notification if the reminder is being deactivated.
+  const inactiveStatuses: ReminderStatus[] = [
+    ReminderStatus.COMPLETED,
+    ReminderStatus.PAUSED,
+    ReminderStatus.CANCELLED,
+    ReminderStatus.DELETED,
+  ];
+  if (inactiveStatuses.includes(reminder.status)) {
+    await cancelReminderNotification(reminder);
+  }
 
   // Auto-activate DRAFT reminders based on geolocation.
   if (reminder.status === ReminderStatus.DRAFT) {
@@ -54,6 +113,16 @@ async function save(reminder: Reminder): Promise<Reminder> {
   }
 
   const result = await delegate.save(reminder);
+
+  // Schedule a notification for reminders that are active.
+  const activeStatuses: ReminderStatus[] = [
+    ReminderStatus.ARMED,
+    ReminderStatus.ARRIVAL_PENDING,
+  ];
+  if (activeStatuses.includes(result.status)) {
+    await scheduleReminderNotification(result);
+  }
+
   _version++;
   notifyListeners();
   return result;
