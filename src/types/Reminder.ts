@@ -32,4 +32,8 @@ export interface Reminder {
   notificationId: string | null; // notifee notification ID, used for cancel
   notificationSoundEnabled: boolean;
   notificationVibrationEnabled: boolean;
+  // Crash-safety fields for stationary timer recovery.
+  lastStationaryReadingAt: string | null; // ISO timestamp of last valid stationary reading
+  lastStationaryReadingLat: number | null;
+  lastStationaryReadingLon: number | null;
 }

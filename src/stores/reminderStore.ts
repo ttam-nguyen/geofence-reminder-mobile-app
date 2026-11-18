@@ -181,4 +181,5 @@ export const store: ReminderRepository = {
   findActive: delegate.findActive.bind(delegate),
   findByStatus: delegate.findByStatus.bind(delegate),
   clear: delegate.clear.bind(delegate),
+  updateStationaryReading: delegate.updateStationaryReading.bind(delegate),
 };

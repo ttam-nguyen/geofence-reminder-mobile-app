@@ -19,6 +19,9 @@ function makeReminder(partial: Partial<Reminder>): Reminder {
     notificationSoundEnabled: partial.notificationSoundEnabled ?? true,
     notificationVibrationEnabled: partial.notificationVibrationEnabled ?? true,
     notificationId: partial.notificationId ?? null,
+    lastStationaryReadingAt: partial.lastStationaryReadingAt ?? null,
+    lastStationaryReadingLat: partial.lastStationaryReadingLat ?? null,
+    lastStationaryReadingLon: partial.lastStationaryReadingLon ?? null,
   };
 }
 

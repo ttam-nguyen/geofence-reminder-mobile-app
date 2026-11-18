@@ -79,6 +79,9 @@ function toReminder(row: Record<string, Scalar>): Reminder {
     notificationId: (row.notificationId as string) || null,
     notificationSoundEnabled: (row.notificationSoundEnabled as number) === 1,
     notificationVibrationEnabled: (row.notificationVibrationEnabled as number) === 1,
+    lastStationaryReadingAt: (row.last_stationary_reading_at as string) || null,
+    lastStationaryReadingLat: (row.last_stationary_reading_lat as number) ?? null,
+    lastStationaryReadingLon: (row.last_stationary_reading_lon as number) ?? null,
   };
 }
 
@@ -186,6 +189,29 @@ export class SQLiteReminderRepository implements ReminderRepository {
   async clear(): Promise<void> {
     await this.ensureDb();
     await this.getDb().execute('DELETE FROM reminders');
+  }
+
+  async updateStationaryReading(
+    id: string,
+    reading: { readingAt: string; latitude: number; longitude: number },
+  ): Promise<Reminder | undefined> {
+    await this.ensureDb();
+    const db = this.getDb();
+
+    // Update the stationary reading fields.
+    await db.execute(
+      'UPDATE reminders SET last_stationary_reading_at = ?, last_stationary_reading_lat = ?, last_stationary_reading_lon = ?, updated_at = ? WHERE id = ?',
+      [
+        reading.readingAt,
+        reading.latitude,
+        reading.longitude,
+        new Date().toISOString(),
+        id,
+      ],
+    );
+
+    // Return the updated reminder.
+    return this.findById(id);
   }
 
   /** Close the database connection (useful for testing). */

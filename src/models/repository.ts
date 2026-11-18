@@ -24,6 +24,12 @@ export interface ReminderRepository {
 
   /** Clear all reminders (useful for testing). */
   clear(): Promise<void>;
+
+  /** Update the last stationary reading for crash-safety recovery. */
+  updateStationaryReading(
+    id: string,
+    reading: { readingAt: string; latitude: number; longitude: number },
+  ): Promise<Reminder | undefined>;
 }
 
 /** In-memory reminder repository implementation. */
@@ -94,5 +100,23 @@ export class InMemoryReminderRepository implements ReminderRepository {
 
   async clear(): Promise<void> {
     this.store.clear();
+  }
+
+  async updateStationaryReading(
+    id: string,
+    reading: { readingAt: string; latitude: number; longitude: number },
+  ): Promise<Reminder | undefined> {
+    const existing = this.store.get(id);
+    if (!existing) return undefined;
+
+    const updated: Reminder = {
+      ...existing,
+      lastStationaryReadingAt: reading.readingAt,
+      lastStationaryReadingLat: reading.latitude,
+      lastStationaryReadingLon: reading.longitude,
+      updatedAt: new Date().toISOString(),
+    };
+    this.store.set(id, updated);
+    return updated;
   }
 }

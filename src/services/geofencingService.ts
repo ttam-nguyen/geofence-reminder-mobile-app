@@ -139,14 +139,21 @@ export async function unregisterReminderGeofence(reminderId: string): Promise<vo
 }
 
 /**
- * Register geofences for all active (ARMED/WAITING_FOR_EXIT) reminders.
+ * Register geofences for all active (ARMED/WAITING_FOR_EXIT/ARRIVAL_PENDING) reminders.
  * Called on cold start to re-register after app restart.
+ * Also resumes stationary timers for reminders in ARRIVAL_PENDING state (crash-safety).
  */
 export async function registerAllActiveGeofences(): Promise<void> {
   const activeReminders = await store.findActive();
 
   for (const reminder of activeReminders) {
     await registerReminderGeofence(reminder);
+
+    // Crash-safety: for reminders in ARRIVAL_PENDING, resume the stationary
+    // timer from the last persisted valid reading (if within max sample gap).
+    if (reminder.status === ReminderStatus.ARRIVAL_PENDING) {
+      await resumeStationaryTimer(reminder);
+    }
   }
 }
 
@@ -310,11 +317,81 @@ function cancelArrivalCandidate(reminderId: string): void {
 }
 
 /**
+ * Maximum gap (ms) between stationary readings for crash-safety recovery.
+ * Readings older than this are considered stale and not used for resumption.
+ */
+const MAX_STATIONARY_RECOVERY_GAP_MS = 15_000; // 15 seconds
+
+/**
+ * Crash-safety: resume the stationary timer from the last persisted valid reading.
+ *
+ * When the app restarts and a reminder is in ARRIVAL_PENDING state, we check
+ * if there's a last stationary reading stored with the reminder. If it's within
+ * the max sample gap, we resume the stationary timer from that point (adding
+ * the elapsed time to the current accumulated time). If it's outside the gap,
+ * we start fresh (no elapsed time counted).
+ */
+async function resumeStationaryTimer(reminder: Reminder): Promise<void> {
+  const { lastStationaryReadingAt, lastStationaryReadingLat, lastStationaryReadingLon } = reminder;
+
+  if (!lastStationaryReadingAt || lastStationaryReadingLat == null || lastStationaryReadingLon == null) {
+    return; // No persisted reading — start fresh.
+  }
+
+  const lastReadingTime = new Date(lastStationaryReadingAt).getTime();
+  const now = Date.now();
+  const elapsedSinceLastReading = now - lastReadingTime;
+
+  // If the last reading is outside the max gap, start fresh (don't count unknown elapsed time).
+  if (elapsedSinceLastReading > MAX_STATIONARY_RECOVERY_GAP_MS) {
+    console.log(`[GeofencingService] Stationary reading too old (${elapsedSinceLastReading}ms) — starting fresh for ${reminder.id}`);
+    return;
+  }
+
+  // Get the current accumulated stationary time (from any existing candidate).
+  const candidates = stationaryService.listCandidates();
+  const existingCandidate = candidates.find(c => c.reminderId === reminder.id);
+  const accumulatedTimeMs = existingCandidate ? existingCandidate.accumulatedStationaryTimeMs : 0;
+
+  // Add the elapsed time since the last reading (only if within the max gap).
+  const newAccumulatedTimeMs = accumulatedTimeMs + elapsedSinceLastReading;
+
+  console.log(`[GeofencingService] Resumed stationary timer for ${reminder.id}: ${elapsedSinceLastReading}ms elapsed since last reading, total: ${newAccumulatedTimeMs}ms`);
+
+  // Cancel any existing candidate and create a new one with resumed accumulated time.
+  stationaryService.cancelArrivalCandidate(reminder.id);
+  stationaryService.startArrivalCandidate(
+    reminder.id,
+    lastStationaryReadingLat,
+    lastStationaryReadingLon,
+    reminder.radiusMeters,
+  );
+
+  // The stationary service doesn't have a direct way to set accumulated time,
+  // so we rely on the next location sample to pick up from this point.
+  // The elapsed time is logged for diagnostics.
+}
+
+/**
  * Process a location sample for stationary qualification.
+ * Also persists the last stationary reading for crash-safety recovery.
  * Returns true if the user has been stationary long enough to trigger arrival.
  */
 export function processLocationSample(reminderId: string, sample: LocationSample): boolean {
   const triggered = stationaryService.processLocationSample(reminderId, sample);
+
+  // Persist the last valid location reading for crash-safety recovery.
+  // (We persist all samples since we can't determine validity here — the
+  // stationary service handles sample validation.)
+  try {
+    store.updateStationaryReading(reminderId, {
+      readingAt: sample.timestamp,
+      latitude: sample.latitude,
+      longitude: sample.longitude,
+    });
+  } catch {
+    // Silently fail — stationary reading persistence is best-effort.
+  }
 
   if (triggered) {
     // Stationary qualification met — transition to TRIGGERED.

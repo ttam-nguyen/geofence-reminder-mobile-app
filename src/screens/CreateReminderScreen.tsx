@@ -193,6 +193,9 @@ export function CreateReminderScreen(props: Props) {
           notificationSoundEnabled: soundEnabled,
           notificationVibrationEnabled: vibrationEnabled,
           notificationId: initialReminder?.notificationId ?? null,
+          lastStationaryReadingAt: null,
+          lastStationaryReadingLat: null,
+          lastStationaryReadingLon: null,
           updatedAt: now,
           locationSource: locationMode === 'pin' ? 'pin' : (initialReminder.locationSource ?? 'current'),
         };
@@ -217,6 +220,9 @@ export function CreateReminderScreen(props: Props) {
           triggeredAt: null,
           completedAt: null,
           locationSource,
+          lastStationaryReadingAt: null,
+          lastStationaryReadingLat: null,
+          lastStationaryReadingLon: null,
         };
         await store.save(newReminder);
       }

@@ -24,6 +24,9 @@ export const mockReminders: Reminder[] = [
     notificationSoundEnabled: true,
     notificationVibrationEnabled: true,
     notificationId: null,
+    lastStationaryReadingAt: null,
+    lastStationaryReadingLat: null,
+    lastStationaryReadingLon: null,
   },
   {
     id: 'mock-2',
@@ -42,6 +45,9 @@ export const mockReminders: Reminder[] = [
     notificationSoundEnabled: true,
     notificationVibrationEnabled: false,
     notificationId: null,
+    lastStationaryReadingAt: null,
+    lastStationaryReadingLat: null,
+    lastStationaryReadingLon: null,
   },
   {
     id: 'mock-3',
@@ -60,6 +66,9 @@ export const mockReminders: Reminder[] = [
     notificationSoundEnabled: true,
     notificationVibrationEnabled: true,
     notificationId: null,
+    lastStationaryReadingAt: hoursAgo(1),
+    lastStationaryReadingLat: 37.7649,
+    lastStationaryReadingLon: -122.4294,
   },
   {
     id: 'mock-4',
@@ -78,5 +87,8 @@ export const mockReminders: Reminder[] = [
     notificationSoundEnabled: true,
     notificationVibrationEnabled: true,
     notificationId: null,
+    lastStationaryReadingAt: hoursAgo(2),
+    lastStationaryReadingLat: 37.7549,
+    lastStationaryReadingLon: -122.4394,
   },
 ];
