@@ -14,6 +14,8 @@ class MainApplication : Application(), ReactApplication {
       context = applicationContext,
       packageList =
         PackageList(this).packages.apply {
+          // Task 8.1: Register SpikeModule for compatibility verification.
+          add(SpikePackage())
         },
     )
   }
