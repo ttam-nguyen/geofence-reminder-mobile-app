@@ -9,5 +9,6 @@ module.exports = {
     '^../stores/reminderStore$': '<rootDir>/__mocks__/reminderStoreMock.js',
     '^react-native-maps$': '<rootDir>/__mocks__/react-native-maps.js',
     '^react-native-geolocation-service$': '<rootDir>/__mocks__/react-native-geolocation-service.js',
+    '^@react-native-community/geolocation$': '<rootDir>/__mocks__/@react-native-community+geolocation.js',
   },
 };

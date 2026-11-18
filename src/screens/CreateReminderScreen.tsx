@@ -1,12 +1,13 @@
 // CreateReminder screen — form to create or edit a reminder.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
   Platform,
+  PermissionsAndroid,
   SafeAreaView as RNSafeAreaView,
   ScrollView,
   Pressable,
@@ -14,7 +15,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
-import Geolocation from 'react-native-geolocation-service';
+import Geolocation from '@react-native-community/geolocation';
 import type { Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -24,7 +25,6 @@ import { SafeAreaView as SafeArea } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 import { store } from '../stores/reminderStore';
 import { validateReminderPayload, clampRadius } from '../models/validation';
-import { useLocationPermission } from '../hooks/useLocationPermission';
 import { reverseGeocode } from '../utils/geocoding';
 
 interface CreateReminderScreenProps {
@@ -67,58 +67,82 @@ export function CreateReminderScreen(props: Props) {
   const [mapRegion, setMapRegion] = useState<Region | null>(null);
   const [pinCoordinate, setPinCoordinate] = useState<{ latitude: number; longitude: number } | null>(null);
 
-  // Location permission
-  const { status: locationStatus, requestPermission, openSettings } = useLocationPermission();
+  // Ref to prevent duplicate geolocation calls between handleCurrentLocation and useEffect.
+  const geolocationInProgress = useRef(false);
+
+  // Android permission check + @react-native-community/geolocation.
+  const getCurrentLocation = useCallback(async (): Promise<{ lat: number; lon: number } | null> => {
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        { title: 'Location Access', message: 'This app needs location access.', buttonPositive: 'OK' },
+      );
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        return null;
+      }
+    }
+
+    return new Promise<{ lat: number; lon: number } | null>((resolve) => {
+      Geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        (err) => {
+          console.error('[CreateReminderScreen] Geolocation error:', err);
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 },
+      );
+    });
+  }, []);
 
   // Auto-fetch current location on new reminder creation (only if no location set yet).
   useEffect(() => {
-    if (!editing && !latitude && locationStatus === 'granted') {
-      Geolocation.getCurrentPosition(
-        (pos) => {
-          setLatitude(pos.coords.latitude);
-          setLongitude(pos.coords.longitude);
+    if (!editing && !latitude && !geolocationInProgress.current) {
+      geolocationInProgress.current = true;
+      getCurrentLocation().then((loc) => {
+        geolocationInProgress.current = false;
+        if (loc) {
+          setLatitude(loc.lat);
+          setLongitude(loc.lon);
           setLocationName('Current location');
-        },
-        (err) => {
-          console.error('[CreateReminderScreen] Geolocation error:', err);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-      );
+        }
+      }).catch((err) => {
+        geolocationInProgress.current = false;
+        console.error('[CreateReminderScreen] Geolocation error:', err);
+      });
     }
-  }, [editing, latitude, locationStatus]);
+  }, [editing, latitude, getCurrentLocation]);
 
   const handleCurrentLocation = useCallback(async () => {
-    // If permission not yet granted, request it first.
-    if (locationStatus !== 'granted') {
-      await requestPermission();
+    if (geolocationInProgress.current) return;
+
+    geolocationInProgress.current = true;
+    try {
+      const loc = await getCurrentLocation();
+      geolocationInProgress.current = false;
+      if (!loc) return;
+
+      setLatitude(loc.lat);
+      setLongitude(loc.lon);
+      setLocationName('Current location');
+
+      // Reverse geocode to get place name.
+      const address = await reverseGeocode(loc.lat, loc.lon);
+      if (address) {
+        setLocationName(address);
+      }
+
+      // Center map on current location.
+      setMapRegion({
+        latitude: loc.lat,
+        longitude: loc.lon,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+    } catch (err) {
+      geolocationInProgress.current = false;
+      console.error('[CreateReminderScreen] handleCurrentLocation error:', err);
     }
-
-    Geolocation.getCurrentPosition(
-      async (pos) => {
-        setLatitude(pos.coords.latitude);
-        setLongitude(pos.coords.longitude);
-        setLocationName('Current location');
-
-        // Reverse geocode to get place name.
-        const address = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-        if (address) {
-          setLocationName(address);
-        }
-
-        // Center map on current location.
-        setMapRegion({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        });
-      },
-      (err) => {
-        console.error('[CreateReminderScreen] Geolocation error:', err);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-    );
-  }, [locationStatus, requestPermission]);
+  }, [getCurrentLocation]);
 
   const handleMapPress = useCallback(
     (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
@@ -201,8 +225,6 @@ export function CreateReminderScreen(props: Props) {
     }
   };
 
-  const isLocationDisabled = locationStatus === 'denied' || locationStatus === 'restricted';
-
   return (
     <View style={styles.container}>
       <KeyboardAvoidingView
@@ -262,27 +284,7 @@ export function CreateReminderScreen(props: Props) {
             <View style={styles.locationSection}>
               <Text style={Typography.bodySmall}>Location</Text>
 
-              {/* Permission status banner */}
-              {locationStatus === 'denied' && (
-                <View style={styles.permissionBanner}>
-                  <Text style={[Typography.caption, { color: Colors.danger }]}>
-                    Location access denied. Please enable location in Settings.
-                  </Text>
-                  <Pressable onPress={openSettings} style={styles.settingsButton}>
-                    <Text style={[Typography.caption, { color: Colors.infoBlue }]}>Open Settings</Text>
-                  </Pressable>
-                </View>
-              )}
-              {locationStatus === 'restricted' && (
-                <Text style={[Typography.caption, { color: Colors.waitingAmber }]}>
-                  Location access restricted by device policy.
-                </Text>
-              )}
-              {locationStatus === 'unavailable' && !editing && (
-                <Text style={[Typography.caption, { color: Colors.textMuted }]}>
-                  Location services unavailable. Use pin selection below.
-                </Text>
-              )}
+
 
               <View style={styles.locationInfo}>
                 <Text style={Typography.caption}>200m radius (fixed)</Text>
@@ -310,12 +312,8 @@ export function CreateReminderScreen(props: Props) {
                     setLocationMode('current');
                     setPinCoordinate(null);
                   }}
-                  disabled={isLocationDisabled}
                 >
-                  <Text style={[
-                    styles.modeButtonText,
-                    isLocationDisabled && { opacity: 0.5 },
-                  ]}>
+                  <Text style={styles.modeButtonText}>
                     Current Location
                   </Text>
                 </Pressable>
@@ -358,7 +356,7 @@ export function CreateReminderScreen(props: Props) {
               )}
 
               {/* Current location button (non-pin mode) */}
-              {locationMode === 'current' && !isLocationDisabled && (
+              {locationMode === 'current' && (
                 <Pressable
                   testID="createReminder.location.getCurrent.button"
                   accessibilityLabel="Get current location"
@@ -518,18 +516,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  permissionBanner: {
-    backgroundColor: Colors.signalRedSoft,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.sm,
-    marginBottom: Spacing.sm,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  settingsButton: {
-    paddingHorizontal: Spacing.sm,
-  },
+
   section: {
     marginBottom: Spacing.md,
   },
