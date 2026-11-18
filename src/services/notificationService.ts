@@ -140,11 +140,11 @@ async function ensureDefaultChannel(): Promise<string> {
   });
 }
 
-/** Strip null values from an object (notifee v9 does not accept null for sound). */
+/** Strip null and undefined values from an object (notifee v9 rejects both). */
 function stripNulls<T extends Record<string, unknown>>(obj: T): Partial<T> {
   const result: Partial<T> = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (value !== null) {
+    if (value !== null && value !== undefined) {
       (result as Record<string, unknown>)[key] = value;
     }
   }
@@ -322,14 +322,21 @@ export class NotifeeNotificationService implements NotificationService {
   /** Create or update an Android notification channel. Returns the channel ID. */
   async createChannel(channel: NotificationChannel): Promise<string> {
     try {
-      await notifee.createChannel({
+      const channelObj: Record<string, unknown> = {
         id: channel.id,
         name: channel.name,
-        description: channel.description,
         importance: channel.importance ?? AndroidImportance.HIGH,
-        sound: channel.sound || undefined,
-        vibrationPattern: channel.vibrationPattern,
-      });
+      };
+      if (channel.description !== undefined && channel.description !== null) {
+        channelObj.description = channel.description;
+      }
+      if (channel.sound) {
+        channelObj.sound = channel.sound;
+      }
+      if (channel.vibrationPattern) {
+        channelObj.vibrationPattern = channel.vibrationPattern;
+      }
+      await notifee.createChannel(channelObj as any);
       return channel.id;
     } catch (err) {
       console.warn('[NotificationService] createChannel failed:', err);
