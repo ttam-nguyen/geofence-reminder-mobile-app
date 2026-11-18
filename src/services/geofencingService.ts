@@ -81,6 +81,11 @@ export function initGeofencingService(): void {
     GEOFENCE_EXIT_EVENT,
     (event: GeofenceEvent) => handleNativeExit(event)
   );
+
+  // Re-register geofences for all active reminders on startup.
+  registerAllActiveGeofences().catch(err => {
+    console.error('[GeofencingService] Failed to re-register active geofences on startup:', err);
+  });
 }
 
 /**

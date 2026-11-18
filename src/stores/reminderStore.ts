@@ -6,6 +6,7 @@ import { SQLiteReminderRepository } from "../models/sqliteAdapter";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { determineInitialStatus } from "../models/initialStatus";
 import { notificationService } from "../services/notificationService";
+import * as geofencingService from "../services/geofencingService";
 
 /** Singleton repository instance shared across all screens. */
 let delegate: ReminderRepository;
@@ -89,6 +90,10 @@ async function cancelReminderNotification(reminder: Reminder): Promise<void> {
 async function save(reminder: Reminder): Promise<Reminder> {
   console.log("[Store] Saving reminder:", reminder);
 
+  // Get the previous status for geofence reconciliation.
+  const existing = await delegate.findById(reminder.id);
+  const previousStatus = existing?.status ?? ReminderStatus.DRAFT;
+
   // Cancel any existing notification if the reminder is being deactivated.
   const inactiveStatuses: ReminderStatus[] = [
     ReminderStatus.COMPLETED,
@@ -98,6 +103,9 @@ async function save(reminder: Reminder): Promise<Reminder> {
   ];
   if (inactiveStatuses.includes(reminder.status)) {
     await cancelReminderNotification(reminder);
+
+    // Unregister native geofence when reminder becomes inactive.
+    await geofencingService.unregisterReminderGeofence(reminder.id);
   }
 
   // Auto-activate DRAFT reminders based on geolocation.
@@ -121,6 +129,14 @@ async function save(reminder: Reminder): Promise<Reminder> {
   ];
   if (activeStatuses.includes(result.status)) {
     await scheduleReminderNotification(result);
+
+    // Register native geofence when reminder becomes active.
+    await geofencingService.registerReminderGeofence(result);
+  }
+
+  // Handle status transitions: active → inactive (unregister geofence).
+  if (activeStatuses.includes(previousStatus) && !activeStatuses.includes(result.status)) {
+    await geofencingService.unregisterReminderGeofence(result.id);
   }
 
   _version++;
@@ -130,6 +146,13 @@ async function save(reminder: Reminder): Promise<Reminder> {
 
 /** Delete a reminder by ID and bump the version (triggers re-renders). */
 async function deleteById(id: string): Promise<boolean> {
+  const existing = await delegate.findById(id);
+
+  // Unregister native geofence before deleting.
+  if (existing) {
+    await geofencingService.unregisterReminderGeofence(id);
+  }
+
   const result = await delegate.deleteById(id);
   if (result) _version++;
   notifyListeners();
