@@ -36,6 +36,33 @@ Decision: Custom native modules can be created and linked on RN 0.88 New Archite
 - TypeScript: `src/native/SpikeModule.ts` — JS interface. Unit tests: ✅ PASS (2/2).
 - Conclusion: Android bridge verified. iOS bridge will be verified once the Xcode toolchain issue (K-014) is resolved. Proceed with Task 8.2 (iOS CoreLocation module) and Task 8.3 (Android Geofencing API) in parallel conceptually, but implement sequentially.
 
+## 2026-11-18 — Phase 8 Task 8.5: TypeScript geofencing service layer
+
+Decision: TypeScript geofencing service integrates native modules, state machine, and stationary qualification.
+
+- `src/services/geofencingService.ts` (310 lines):
+  - `initGeofencingService()` — sets up NativeEventEmitter listeners for ENTER/EXIT events.
+  - `registerReminderGeofence(reminder)` — registers native geofence for active reminders.
+  - `handleNativeEnter()` — processes ENTER via processGeofenceEvent() → ARMED→ARRIVAL_PENDING, starts stationary qualification.
+  - `handleNativeExit()` — processes EXIT via processGeofenceEvent() → ARRIVAL_PENDING→ARMED, cancels stationary qualification.
+  - `triggerArrival()` — transitions ARRIVAL_PENDING → TRIGGERED when stationary qualification met.
+  - Callbacks: `setOnStatusChange()`, `setOnArrivalTriggered()`, `setOnStationaryUpdate()`.
+  - Polling intervals for stationary time updates (cleaned up on cancel).
+- TypeScript compiles cleanly (no errors).
+
+## 2026-11-18 — Phase 8 Task 8.4: Stationary qualification service
+
+Decision: StationaryService is a pure TypeScript class with no native dependencies.
+
+- `src/services/stationaryService.ts` (173 lines):
+  - Validates samples: timestamp < 5 min old, horizontalAccuracy ≤ 50m.
+  - Speed calculation: haversine distance / time difference.
+  - Speed ≥ 0.89408 m/s (2 mph) → resets stationary timer.
+  - Speed < threshold → accumulates time; 120s → triggers arrival.
+  - Skips samples < 1 second apart (noise filtering).
+- `src/services/__tests__/stationaryService.test.ts` — 19 tests, all PASS.
+- `src/types/location.ts` — LocationSample type for stationary qualification.
+
 Related: See `docs/PHASE_8_PLAN.md` (full plan), `docs/PHASE_8_TEST_PLAN.md` (test checklist).
 
 ## 2026-11-17 — Phase 6: Map library compatibility spike

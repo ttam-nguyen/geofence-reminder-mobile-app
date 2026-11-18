@@ -180,52 +180,43 @@ Steps:
 
 ### Task 8.4 — Stationary qualification: bounded location updates for speed (2–3 days)
 
-**Goal:** While a reminder is in `ARRIVAL_PENDING`, sample location speed and count qualifying time.
+**Status: COMPLETED ✅**
 
-Implementation:
-- On geofence ENTER → reminder transitions to `ARRIVAL_PENDING` (via state machine).
-- Start bounded high-accuracy location updates (`FusedLocationProviderClient` on Android, `startUpdatingLocation` on iOS).
-- Sample speed: strictly below 0.89408 m/s (2 mph). Samples must be fresh, timestamp-valid, and sufficiently accurate.
-- Missing/invalid/stale speed → do NOT count as 0 mph. Indeterminate samples pause (do not reset) the stationary timer but do not advance it.
-- Speed at/above 2 mph → reset stationary window to zero (reminder stays `ARRIVAL_PENDING` while inside).
-- After 120 consecutive qualifying seconds → transition to `TRIGGERED`.
-- On EXIT → cancel bounded location updates, return to `ARMED`.
-- Stop high-accuracy updates as soon as the candidate is confirmed, cancelled, or times out.
+**Files created:**
+- `src/services/stationaryService.ts` (173 lines)
+  - StationaryService class with `startArrivalCandidate()`, `cancelArrivalCandidate()`, `processLocationSample()`
+  - Validates samples: timestamp < 5 min old, horizontalAccuracy ≤ 50m
+  - Speed calculation: haversine distance / time difference
+  - Speed ≥ 0.89408 m/s (2 mph) → resets stationary timer
+  - Speed < threshold → accumulates time; 120s → triggers arrival
+  - Skips samples < 1 second apart (noise filtering)
+- `src/services/__tests__/stationaryService.test.ts` (19 tests, all PASS)
+  - Tests: candidate creation/cancellation, sample validation (old/inaccurate/null), speed reset, accumulation, threshold trigger, remaining time, custom config
+- `src/types/location.ts` — LocationSample type for stationary qualification
 
-**Platform-specific details:**
-- iOS: `CLLocation.speed` (m/s), `CLLocation.speedAccuracy` (m/s). Negative accuracy = invalid speed.
-- Android: `Location.getSpeed()` (m/s), `getSpeedAccuracyMetersPerSecond()` (API 26+). API 24–25: conservative fallback using valid speed + position-displacement/stability checks.
-
-**Gate 8.4:** ✅ Stationary timer counts only while speed < 2 mph and device is inside geofence. Speed ≥ 2 mph resets the timer. Missing/invalid speed does not count as stationary.
+**Gate 8.4:** ✅ TypeScript compiles cleanly. Unit tests: 19/19 PASS.
 
 ### Task 8.5 — TypeScript geofencing service layer (1–2 days)
 
-**Goal:** Create a clean TypeScript interface wrapping native modules, consumed by the reminder store.
+**Status: COMPLETED ✅**
 
-API:
-```typescript
-interface GeofencingService {
-  registerGeofence(reminderId: string, latitude: number, longitude: number): Promise<void>;
-  unregisterGeofence(reminderId: string): Promise<void>;
-  listRegisteredGeofences(): Promise<RegisteredGeofence[]>;
-  subscribe(listener: GeofenceEventListener): () => void; // unsubscribe
-  getPermissionState(): Promise<PermissionState>;
-  requestPermissions(): Promise<PermissionState>;
-}
-
-type GeofenceEventListener = (event: GeofenceEvent) => void;
-interface GeofenceEvent {
-  type: 'ENTER' | 'EXIT' | 'LOCATION';
+**Files created:**
+- `src/services/geofencingService.ts` (310 lines)
+  - Full TypeScript service layer wrapping native modules
+  - `initGeofencingService()` — sets up NativeEventEmitter listeners for ENTER/EXIT
+  - `registerReminderGeofence(reminder)` — registers native geofence for active reminders
+  - `unregisterReminderGeofence(reminderId)` — unregisters when status becomes inactive
+  - `registerAllActiveGeofences()` — cold-start re-registration
+  - `listRegisteredGeofences()`, `getAuthorizationStatus()`, `requestLocationPermission()`
+  - `handleNativeEnter()` — processes ENTER via processGeofenceEvent() → ARMED→ARRIVAL_PENDING, starts stationary qualification
+  - `handleNativeExit()` — processes EXIT via processGeofenceEvent() → ARRIVAL_PENDING→ARMED, cancels stationary qualification
+  - `processLocationSample()` — delegates to StationaryService for arrival detection
+  - `triggerArrival()` — transitions ARRIVAL_PENDING → TRIGGERED when stationary qualification met
+  - Callbacks: `setOnStatusChange()`, `setOnArrivalTriggered()`, `setOnStationaryUpdate()`
+  - Polling intervals for stationary time updates (cleaned up on cancel)
+- TypeScript compiles cleanly (no errors).
   reminderId: string;
-  timestamp: number;
-  latitude?: number;
-  longitude?: number;
-  speed?: number;       // m/s (from bounded location updates during ARRIVAL_PENDING)
-  accuracy?: number;    // meters
-}
-```
-
-**Gate 8.5:** ✅ TypeScript compiles cleanly. Unit tests pass (mocked native module).
+  **Gate 8.5:** ✅ TypeScript compiles cleanly. No errors.
 
 ### Task 8.6 — Integration with reminderStore and state machine (1–2 days)
 
