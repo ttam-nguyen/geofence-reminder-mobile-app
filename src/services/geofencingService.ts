@@ -61,6 +61,7 @@ const stationaryService = new StationaryService();
 let onStatusChange: ((reminderId: string, newStatus: ReminderStatus) => void) | null = null;
 let onArrivalTriggered: ((reminderId: string) => void) | null = null;
 let onStationaryUpdate: ((reminderId: string, remainingMs: number) => void) | null = null;
+let onPermissionChange: ((permissionState: string) => void) | null = null;
 
 // Interval IDs for stationary update polling (reminderId → intervalId).
 const updateIntervals = new Map<string, ReturnType<typeof setInterval>>();
@@ -182,13 +183,26 @@ export async function getAuthorizationStatus(): Promise<string> {
 }
 
 /**
+ * Set the callback for permission state changes.
+ */
+export function setOnPermissionChange(callback: (permissionState: string) => void): void {
+  onPermissionChange = callback;
+}
+
+/**
  * Request location permission from the user.
  */
 export async function requestLocationPermission(): Promise<void> {
   try {
-    await GeofencingModule.requestLocationPermission();
+    const result = await GeofencingModule.requestLocationPermission();
+    if (onPermissionChange) {
+      onPermissionChange(typeof result === 'string' ? result : 'authorized');
+    }
   } catch (error) {
     console.error('[GeofencingService] Failed to request location permission:', error);
+    if (onPermissionChange) {
+      onPermissionChange('denied');
+    }
   }
 }
 

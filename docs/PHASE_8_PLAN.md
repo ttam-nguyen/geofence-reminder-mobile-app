@@ -220,6 +220,25 @@ Steps:
 
 ### Task 8.6 — Integration with reminderStore and state machine (1–2 days)
 
+**Status: COMPLETED ✅**
+
+- `src/stores/reminderStore.ts` (updated):
+  - `save()` — calls `geofencingService.registerReminderGeofence(result)` when status is ARMED/ARRIVAL_PENDING.
+  - Unregisters native geofence when reminder becomes inactive (COMPLETED, PAUSED, CANCELLED, DELETED).
+  - `deleteById()` — unregisters native geofence before deletion.
+- TypeScript compiles cleanly. Android build: PASS.
+
+### Task 8.7 — Reconciliation and recovery on app launch (1 day)
+
+**Status: COMPLETED ✅**
+
+- `src/services/geofencingService.ts` (updated):
+  - `initGeofencingService()` — calls `registerAllActiveGeofences()` on startup.
+  - Re-registers geofences for all reminders that are ARMED or ARRIVAL_PENDING.
+  - Handles capacity overflow gracefully (native module handles it).
+
+### Task 8.8 — Permission handling and error states (1 day)
+
 **Goal:** Wire native geofence events to the existing state machine and reminder store.
 
 Integration points:
