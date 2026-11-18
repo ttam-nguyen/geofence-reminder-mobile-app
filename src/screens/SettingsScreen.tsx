@@ -12,6 +12,7 @@ import {
   setNotificationVibrationEnabled,
 } from "../stores/settingsStore";
 import { notificationService, AuthorizationStatus } from "../services/notificationService";
+import { DeveloperGeofenceControls, isDeveloperMode } from "../components/DeveloperGeofenceControls";
 
 type SwitchProps = {
   enabled: boolean;
@@ -295,6 +296,18 @@ export function SettingsScreen() {
         </View>
 
         <SectionDivider />
+
+        {/* Developer Tools section (visible only in Developer Mode) */}
+        {isDeveloperMode() && (
+          <>
+            <SectionDivider />
+            <View style={styles.section}>
+              <Text style={[Typography.bodySmall, { marginBottom: Spacing.sm }]}>Developer Tools</Text>
+              <DeveloperGeofenceControls />
+            </View>
+            <SectionDivider />
+          </>
+        )}
 
         {/* About section */}
         <View style={styles.section}>
