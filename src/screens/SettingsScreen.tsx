@@ -1,6 +1,6 @@
 // Settings screen — full settings with notifications, permissions, privacy, and about sections.
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from "react-native";
 import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
 import { Colors, Spacing, Typography, BorderRadius, PlatformConstants } from "../theme";
@@ -11,6 +11,7 @@ import {
   setNotificationSoundEnabled,
   setNotificationVibrationEnabled,
 } from "../stores/settingsStore";
+import { notificationService, AuthorizationStatus } from "../services/notificationService";
 
 type SwitchProps = {
   enabled: boolean;
@@ -50,15 +51,129 @@ function SectionDivider() {
 
 export function SettingsScreen() {
   const [settings, setSettings] = useState(getSettings());
+  const [notificationStatus, setNotificationStatus] = useState<AuthorizationStatus>("unspecified");
+  const [loading, setLoading] = useState(false);
 
   React.useEffect(() => {
     const unsub = subscribe(() => setSettings(getSettings()));
     return unsub;
   }, []);
 
+  // Check notification permission status on mount and when settings change.
+  const refreshPermissionStatus = useCallback(async () => {
+    const status = await notificationService.checkPermission();
+    setNotificationStatus(status);
+  }, []);
+
+  useEffect(() => {
+    refreshPermissionStatus();
+  }, [refreshPermissionStatus]);
+
   const openSystemSettings = useCallback(async () => {
     await Linking.openSettings();
   }, []);
+
+  // Request notification permission.
+  const handleRequestPermission = useCallback(async () => {
+    setLoading(true);
+    try {
+      const status = await notificationService.requestPermission();
+      setNotificationStatus(status);
+      if (status === "authorized") {
+        // Update the notification channel with current preferences.
+        await updateNotificationChannel();
+      }
+    } catch (err) {
+      console.warn("[Settings] Failed to request permission:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Update the Android notification channel when sound/vibration toggles change.
+  const updateNotificationChannel = useCallback(async () => {
+    const currentSettings = getSettings();
+    await notificationService.createChannel({
+      id: "gps_reminder_default",
+      name: "GPS Reminders",
+      sound: currentSettings.notificationSoundEnabled ? "default" : null,
+      vibrationPattern: currentSettings.notificationVibrationEnabled
+        ? [200, 100, 200]
+        : undefined,
+      importance: 3, // AndroidImportance.HIGH
+    });
+  }, []);
+
+  // Wire sound/vibration toggles to update the channel.
+  const handleSoundToggle = useCallback(
+    async (enabled: boolean) => {
+      setNotificationSoundEnabled(enabled);
+      await updateNotificationChannel();
+    },
+    [updateNotificationChannel],
+  );
+
+  const handleVibrationToggle = useCallback(
+    async (enabled: boolean) => {
+      setNotificationVibrationEnabled(enabled);
+      await updateNotificationChannel();
+    },
+    [updateNotificationChannel],
+  );
+
+  // Send a test notification.
+  const handleTestNotification = useCallback(async () => {
+    setLoading(true);
+    try {
+      await notificationService.displayNotification({
+        id: `test_${Date.now()}`,
+        title: "Test Reminder",
+        body: "This is a test notification. Geofence notifications work the same way.",
+        data: { source: "test" },
+        trigger: "immediate",
+        android: {
+          channelId: "gps_reminder_default",
+          importance: 3,
+        },
+        ios: {
+          sound: "default",
+        },
+      });
+    } catch (err) {
+      console.warn("[Settings] Test notification failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Permission status label.
+  const getPermissionLabel = (): string => {
+    switch (notificationStatus) {
+      case "authorized":
+        return "Notifications On";
+      case "denied":
+        return "Notifications Off — tap to enable";
+      case "unspecified":
+        return "Request Notifications";
+      default:
+        return "Notifications Off";
+    }
+  };
+
+  const getPermissionStatusText = (): string => {
+    switch (notificationStatus) {
+      case "authorized":
+        return "You will receive reminders when you arrive at your locations.";
+      case "denied":
+        return "Notifications are disabled. Tap 'Open Settings' to enable them.";
+      case "unspecified":
+        return "We need your permission to send reminders when you arrive at locations.";
+      default:
+        return "";
+    }
+  };
+
+  const isPermissionGranted = notificationStatus === "authorized";
 
   return (
     <SafeArea style={styles.container} edges={["top"]}>
@@ -68,21 +183,84 @@ export function SettingsScreen() {
         {/* Notifications section */}
         <View style={styles.section}>
           <SectionTitle>Notifications</SectionTitle>
+
+          {/* Permission status */}
+          <View style={styles.permissionStatusRow}>
+            <Text style={[Typography.bodySmall, { flex: 1 }]}>
+              {getPermissionStatusText()}
+            </Text>
+          </View>
+
+          {/* Permission request / status button */}
+          {notificationStatus === "denied" ? (
+            <Pressable
+              testID="settings.notifications.openSystemSettings"
+              accessibilityLabel="Open system settings for notifications"
+              accessibilityRole="button"
+              onPress={openSystemSettings}
+              style={[styles.permissionButton, styles.glassButton]}
+            >
+              <Text style={styles.permissionButtonText}>Open Settings</Text>
+            </Pressable>
+          ) : notificationStatus === "unspecified" ? (
+            <Pressable
+              testID="settings.notifications.requestPermission"
+              accessibilityLabel="Request notification permission"
+              accessibilityRole="button"
+              onPress={handleRequestPermission}
+              disabled={loading}
+              style={[
+                styles.permissionButton,
+                styles.glassButton,
+                loading && styles.disabledButton,
+              ]}
+            >
+              <Text style={styles.primaryButtonText}>
+                {loading ? "Requesting..." : getPermissionLabel()}
+              </Text>
+            </Pressable>
+          ) : (
+            <View style={styles.permissionButton}>
+              <Text style={styles.primaryButtonText}>✓ {getPermissionLabel()}</Text>
+            </View>
+          )}
+
           <SettingRow
             label="Enable notifications"
             enabled={settings.notificationsEnabled}
-            onToggle={() => setNotificationsEnabled(!settings.notificationsEnabled)}
+            onToggle={() => {
+              const newVal = !settings.notificationsEnabled;
+              setNotificationsEnabled(newVal);
+              if (newVal && notificationStatus === "authorized") {
+                updateNotificationChannel();
+              }
+            }}
           />
           <SettingRow
             label="Sound"
             enabled={settings.notificationSoundEnabled}
-            onToggle={() => setNotificationSoundEnabled(!settings.notificationSoundEnabled)}
+            onToggle={() => handleSoundToggle(!settings.notificationSoundEnabled)}
           />
           <SettingRow
             label="Vibration"
             enabled={settings.notificationVibrationEnabled}
-            onToggle={() => setNotificationVibrationEnabled(!settings.notificationVibrationEnabled)}
+            onToggle={() => handleVibrationToggle(!settings.notificationVibrationEnabled)}
           />
+
+          {/* Test notification button */}
+          <Pressable
+            testID="settings.notifications.sendTest"
+            onPress={handleTestNotification}
+            disabled={loading || !isPermissionGranted}
+            style={[
+              styles.testButton,
+              (!loading && !isPermissionGranted) && styles.disabledButton,
+            ]}
+          >
+            <Text style={styles.testButtonText}>
+              {loading ? "Sending..." : "Send Test Notification"}
+            </Text>
+          </Pressable>
         </View>
 
         <SectionDivider />
@@ -187,5 +365,27 @@ const styles = StyleSheet.create({
   },
   switchThumbOn: {
     alignSelf: "flex-end",
+  },
+  permissionStatusRow: {
+    marginBottom: Spacing.sm,
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  primaryButtonText: {
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
+  },
+  testButton: {
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: '#34C759',
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+  },
+  testButtonText: {
+    ...Typography.bodySmall,
+    color: '#FFFFFF',
   },
 });
