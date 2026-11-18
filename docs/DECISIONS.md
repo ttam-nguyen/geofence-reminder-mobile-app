@@ -8,7 +8,7 @@ Decision: `react-native-maps` v1.29.11 **successfully links** on both iOS (Cocoa
 
 - Android: `./gradlew app:assembleDebug` — BUILD SUCCESSFUL (2m 6s, 214 tasks executed)
 - iOS: `bundle exec pod install` — 94 dependencies (up from 92, +maps +geolocation)
-- Location permissions: `react-native-geolocation-service` installed as lightweight permission handler
+- Location permissions: `@react-native-community/geolocation` used for location access (replaced `react-native-geolocation-service` which crashed on devices without Google Play Services). Android permissions declared in AndroidManifest.xml (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`). Info.plist already had `NSLocationWhenInUseUsageDescription` (verified).
 - AndroidManifest.xml updated with `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`
 - Info.plist already had `NSLocationWhenInUseUsageDescription` (verified)
 
