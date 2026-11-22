@@ -24,10 +24,17 @@ if [ -z "$APK" ]; then
 fi
 cd ..
 
-echo "=== Step 3: Uninstall old app ==="
-adb uninstall com.gpsreminder || true
-
-echo "=== Step 4: Install new APK ==="
-adb install -r "$ROOT/android/$APK"
+echo "=== Step 3: Install as update (keeps app data) ==="
+# `adb install -r` replaces the APK in place and preserves the app's data
+# directory (SQLite reminders, AsyncStorage flags, permissions).
+if adb install -r "$ROOT/android/$APK"; then
+  echo "Updated in place — app data preserved."
+else
+  echo "Update install failed (signature mismatch, version downgrade, or corrupt package)."
+  echo "=== Step 4: Fallback — uninstall, then fresh install ==="
+  echo "WARNING: uninstall drops the app's data (reminders and saved settings)."
+  adb uninstall com.gpsreminder || true
+  adb install "$ROOT/android/$APK"
+fi
 
 echo "=== Done! Verify version in Settings > About ==="
