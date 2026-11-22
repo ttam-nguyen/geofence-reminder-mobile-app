@@ -1,35 +1,27 @@
 // ReminderCard — glass-styled card showing a reminder's summary with status badge and overflow menu.
 
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Platform,
-  Modal,
-  TouchableOpacity,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Reminder, ReminderStatus } from '../types/Reminder';
-import { Colors, Spacing, Typography, BorderRadius } from '../theme';
+import React, { useState } from "react";
+import { View, Text, Pressable, StyleSheet, Platform, Modal, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Reminder, ReminderStatus } from "../types/Reminder";
+import { Colors, Spacing, Typography, BorderRadius } from "../theme";
 
 interface ReminderCardProps {
   reminder: Reminder;
   onPress?: (id: string) => void;
-  onOverflowPress?: (id: string, action: 'edit' | 'complete' | 'delete') => void;
+  onOverflowPress?: (id: string, action: "edit" | "complete" | "delete") => void;
 }
 
 const statusLabels: Record<ReminderStatus, string> = {
-  [ReminderStatus.DRAFT]: 'Draft',
-  [ReminderStatus.WAITING_FOR_EXIT]: 'Waiting for Exit',
-  [ReminderStatus.ARMED]: 'Active',
-  [ReminderStatus.ARRIVAL_PENDING]: 'Arriving…',
-  [ReminderStatus.TRIGGERED]: 'Triggered',
-  [ReminderStatus.COMPLETED]: 'Completed',
-  [ReminderStatus.PAUSED]: 'Paused',
-  [ReminderStatus.CANCELLED]: 'Cancelled',
-  [ReminderStatus.DELETED]: 'Deleted',
+  [ReminderStatus.DRAFT]: "Draft",
+  [ReminderStatus.WAITING_FOR_EXIT]: "Waiting for Exit",
+  [ReminderStatus.ARMED]: "Active",
+  [ReminderStatus.ARRIVAL_PENDING]: "Arriving…",
+  [ReminderStatus.TRIGGERED]: "Triggered",
+  [ReminderStatus.COMPLETED]: "Completed",
+  [ReminderStatus.PAUSED]: "Paused",
+  [ReminderStatus.CANCELLED]: "Cancelled",
+  [ReminderStatus.DELETED]: "Deleted",
 };
 
 const statusColors: Record<ReminderStatus, string> = {
@@ -44,13 +36,8 @@ const statusColors: Record<ReminderStatus, string> = {
   [ReminderStatus.DELETED]: Colors.danger,
 };
 
-export function ReminderCard({
-  reminder,
-  onPress,
-  onOverflowPress,
-}: ReminderCardProps) {
+export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCardProps) {
   const [showMenu, setShowMenu] = useState(false);
-  const insets = useSafeAreaInsets();
   const statusColor = statusColors[reminder.status] || Colors.textMuted;
   const isTriggered = reminder.status === ReminderStatus.TRIGGERED;
 
@@ -84,7 +71,7 @@ export function ReminderCard({
       </View>
 
       <Text style={Typography.bodySmall} numberOfLines={2}>
-        {reminder.locationName || 'No location name'}
+        {reminder.locationName || "No location name"}
       </Text>
 
       {reminder.description ? (
@@ -98,55 +85,54 @@ export function ReminderCard({
       </View>
 
       {/* Overflow menu */}
-      <Modal
-        visible={showMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowMenu(false)}
-      >
+      <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
         <Pressable style={styles.menuBackdrop} onPress={() => setShowMenu(false)}>
-          <View style={[styles.menu, { paddingBottom: insets.bottom + Spacing.md }]}>
-            {!isTriggered && (
+          {/* SafeAreaView keeps the whole sheet clear of the home indicator /
+              Android system navigation bar, which otherwise clips the menu. */}
+          <SafeAreaView style={styles.menuSafeArea} edges={["left", "right", "bottom"]}>
+            <View style={styles.menu}>
+              {!isTriggered && (
+                <Pressable
+                  testID={`home.reminder.overflow.edit.${reminder.id}`}
+                  accessibilityLabel="Edit reminder"
+                  accessibilityRole="button"
+                  onPress={() => {
+                    onOverflowPress?.(reminder.id, "edit");
+                    setShowMenu(false);
+                  }}
+                  style={styles.menuItem}
+                >
+                  <Text style={styles.menuItemText}>Edit</Text>
+                </Pressable>
+              )}
+              {!isTriggered && (
+                <Pressable
+                  testID={`home.reminder.overflow.complete.${reminder.id}`}
+                  accessibilityLabel="Complete reminder"
+                  accessibilityRole="button"
+                  onPress={() => {
+                    onOverflowPress?.(reminder.id, "complete");
+                    setShowMenu(false);
+                  }}
+                  style={styles.menuItem}
+                >
+                  <Text style={styles.menuItemText}>Complete</Text>
+                </Pressable>
+              )}
               <Pressable
-                testID={`home.reminder.overflow.edit.${reminder.id}`}
-                accessibilityLabel="Edit reminder"
+                testID={`home.reminder.overflow.delete.${reminder.id}`}
+                accessibilityLabel="Delete reminder"
                 accessibilityRole="button"
                 onPress={() => {
-                  onOverflowPress?.(reminder.id, 'edit');
+                  onOverflowPress?.(reminder.id, "delete");
                   setShowMenu(false);
                 }}
                 style={styles.menuItem}
               >
-                <Text style={styles.menuItemText}>Edit</Text>
+                <Text style={[styles.menuItemText, styles.deleteText]}>Delete</Text>
               </Pressable>
-            )}
-            {!isTriggered && (
-              <Pressable
-                testID={`home.reminder.overflow.complete.${reminder.id}`}
-                accessibilityLabel="Complete reminder"
-                accessibilityRole="button"
-                onPress={() => {
-                  onOverflowPress?.(reminder.id, 'complete');
-                  setShowMenu(false);
-                }}
-                style={styles.menuItem}
-              >
-                <Text style={styles.menuItemText}>Complete</Text>
-              </Pressable>
-            )}
-            <Pressable
-              testID={`home.reminder.overflow.delete.${reminder.id}`}
-              accessibilityLabel="Delete reminder"
-              accessibilityRole="button"
-              onPress={() => {
-                onOverflowPress?.(reminder.id, 'delete');
-                setShowMenu(false);
-              }}
-              style={styles.menuItem}
-            >
-              <Text style={[styles.menuItemText, styles.deleteText]}>Delete</Text>
-            </Pressable>
-          </View>
+            </View>
+          </SafeAreaView>
         </Pressable>
       </Modal>
     </Pressable>
@@ -162,20 +148,20 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderGlass,
     ...Platform.select({
       ios: {
-        backdropFilter: 'blur(10px)',
-        WebKitBackdropFilter: 'blur(10px)',
+        backdropFilter: "blur(10px)",
+        WebKitBackdropFilter: "blur(10px)",
       },
     }),
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: Spacing.xs,
   },
   headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
   },
   statusBadge: {
@@ -185,8 +171,8 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   overflowButton: {
     padding: Spacing.xs,
@@ -197,20 +183,27 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: Spacing.xs,
   },
   menuBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  menuSafeArea: {
+    // Full-width row so the sheet spans the screen; the inset padding from
+    // SafeAreaView (bottom edge) is what lifts it above the system nav bar.
+    alignSelf: "stretch",
   },
   menu: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
-    margin: Spacing.md,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
     padding: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.borderGlass,
