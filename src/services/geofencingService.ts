@@ -18,11 +18,29 @@
  */
 
 import { NativeEventEmitter, NativeModules } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
+import notifee, { EventType } from '@notifee/react-native';
 import { ReminderStatus, Reminder } from '../types/Reminder';
 import { processGeofenceEvent, GeofenceEventType } from '../models/eventProcessor';
-import { store } from '../stores/reminderStore';
+import { store, scheduleReminderNotification } from '../stores/reminderStore';
 import { StationaryService, StationaryCandidate } from './stationaryService';
 import type { LocationSample } from '../types/location';
+
+// Haversine distance (meters) between two lat/lon pairs.
+function haversineMeters(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number,
+): number {
+  const R = 6_371_000; // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 const GeofencingModule = NativeModules.GeofencingModule as any;
 
@@ -62,9 +80,14 @@ let onStatusChange: ((reminderId: string, newStatus: ReminderStatus) => void) | 
 let onArrivalTriggered: ((reminderId: string) => void) | null = null;
 let onStationaryUpdate: ((reminderId: string, remainingMs: number) => void) | null = null;
 let onPermissionChange: ((permissionState: string) => void) | null = null;
+type NotificationTapData = { reminderId?: string };
+let onNotificationTap: ((data: NotificationTapData) => void) | null = null;
 
 // Interval IDs for stationary update polling (reminderId → intervalId).
 const updateIntervals = new Map<string, ReturnType<typeof setInterval>>();
+
+// GPS watch IDs for stationary detection (reminderId → watchId).
+const gpsWatchIds = new Map<string, string | number>();
 
 /**
  * Initialize the geofencing service. Sets up native event listeners.
@@ -83,10 +106,29 @@ export function initGeofencingService(): void {
     (event: GeofenceEvent) => handleNativeExit(event)
   );
 
+  // Listen for notification taps (foreground).
+  notifee.onForegroundEvent(async ({ type, detail }) => {
+    if (type === EventType.PRESS) {
+      const notificationId = detail?.notification?.id;
+      const data = (detail?.notification?.data as NotificationTapData) || {};
+      if (onNotificationTap) {
+        onNotificationTap({ reminderId: typeof notificationId === 'string' ? notificationId : data.reminderId });
+      }
+    }
+  });
+
   // Re-register geofences for all active reminders on startup.
   registerAllActiveGeofences().catch(err => {
     console.error('[GeofencingService] Failed to re-register active geofences on startup:', err);
   });
+}
+
+/**
+ * Set the callback for notification tap events.
+ * Call from AppNavigator to wire up navigation when a notification is tapped.
+ */
+export function setOnNotificationTap(callback: (data: NotificationTapData) => void): void {
+  onNotificationTap = callback;
 }
 
 /**
@@ -113,9 +155,30 @@ export function setOnStationaryUpdate(callback: (reminderId: string, remainingMs
 /**
  * Register a geofence for a reminder (called when status is ARMED or WAITING_FOR_EXIT).
  */
-export async function registerReminderGeofence(reminder: Reminder): Promise<void> {
+export async function registerReminderGeofence(
+  reminder: Reminder,
+  userPosition?: { latitude: number; longitude: number },
+): Promise<void> {
   if (reminder.status !== ReminderStatus.ARMED && reminder.status !== ReminderStatus.WAITING_FOR_EXIT) {
     return; // Only register active reminders.
+  }
+
+  // Safety check: warn if the geofence is >10km from the user's current position.
+  // This catches mock reminders seeded far away when the user is not in proximity.
+  if (userPosition) {
+    const dist = haversineMeters(
+      userPosition.latitude,
+      userPosition.longitude,
+      reminder.latitude,
+      reminder.longitude,
+    );
+    const MAX_REGISTER_DISTANCE = 10_000; // 10 km
+    if (dist > MAX_REGISTER_DISTANCE) {
+      console.warn(
+        `[GeofencingService] Registering geofence for ${reminder.id} is ${Math.round(dist)}m ` +
+          `from user position — geofence will only fire when user is physically nearby.`,
+      );
+    }
   }
 
   try {
@@ -287,6 +350,7 @@ async function handleNativeExit(event: GeofenceEvent): Promise<void> {
 
 /**
  * Start stationary qualification for an arrival candidate.
+ * Also starts GPS location watching to feed samples into processLocationSample().
  */
 function startArrivalCandidate(reminderId: string, lat: number, lon: number, radiusMeters: number): void {
   stationaryService.startArrivalCandidate(reminderId, lat, lon, radiusMeters);
@@ -300,6 +364,27 @@ function startArrivalCandidate(reminderId: string, lat: number, lon: number, rad
   }, 1000); // Update every second for UI feedback.
 
   updateIntervals.set(reminderId, intervalId);
+
+  // Start GPS location watching to feed samples into processLocationSample().
+  // This is required for stationary detection — without location samples,
+  // triggerArrival() can never fire.
+  try {
+    const watchId = Geolocation.watchPosition(
+      (pos) => {
+        processLocationSample(reminderId, {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          horizontalAccuracy: pos.coords.accuracy,
+          timestamp: new Date(pos.timestamp).toISOString(),
+        });
+      },
+      (err) => console.warn(`[GeofencingService] watchPosition error for ${reminderId}:`, err),
+      { enableHighAccuracy: true, distanceFilter: 5, interval: 3000, fastestInterval: 2000 },
+    );
+    gpsWatchIds.set(reminderId, watchId as number);
+  } catch (err) {
+    console.error(`[GeofencingService] Failed to start watchPosition for ${reminderId}:`, err);
+  }
 }
 
 /**
@@ -313,6 +398,13 @@ function cancelArrivalCandidate(reminderId: string): void {
   if (intervalId) {
     clearInterval(intervalId);
     updateIntervals.delete(reminderId);
+  }
+
+  // Stop GPS location watching.
+  const watchId = gpsWatchIds.get(reminderId);
+  if (watchId !== undefined) {
+    Geolocation.clearWatch(watchId as number);
+    gpsWatchIds.delete(reminderId);
   }
 }
 
@@ -403,10 +495,18 @@ export function processLocationSample(reminderId: string, sample: LocationSample
 
 /**
  * Trigger an arrival notification (stationary qualification met).
+ * This is where the actual notification fires — NOT during save/arming.
  */
 async function triggerArrival(reminderId: string): Promise<void> {
   const reminder = await store.findById(reminderId);
   if (!reminder) return;
+
+  // Stop GPS watching before transitioning.
+  const watchId = gpsWatchIds.get(reminderId);
+  if (watchId !== undefined) {
+    Geolocation.clearWatch(watchId as number);
+    gpsWatchIds.delete(reminderId);
+  }
 
   try {
     const updatedReminder: Reminder = {
@@ -416,6 +516,14 @@ async function triggerArrival(reminderId: string): Promise<void> {
       triggeredAt: new Date().toISOString(),
     };
     await store.save(updatedReminder);
+
+    // Display the notification NOW — when stationary qualification is met.
+    // (Notifications were NOT scheduled during save/arming.)
+    try {
+      await scheduleReminderNotification(updatedReminder);
+    } catch (notifyErr) {
+      console.warn(`[GeofencingService] Failed to display notification for ${reminderId}:`, notifyErr);
+    }
 
     if (onStatusChange) {
       onStatusChange(reminderId, ReminderStatus.TRIGGERED);
@@ -453,6 +561,12 @@ export async function clearAllGeofences(): Promise<void> {
     clearInterval(intervalId);
   }
   updateIntervals.clear();
+
+  // Stop all GPS location watching.
+  for (const watchId of gpsWatchIds.values()) {
+    Geolocation.clearWatch(watchId as number);
+  }
+  gpsWatchIds.clear();
 
   if (onStatusChange) {
     onStatusChange = null;

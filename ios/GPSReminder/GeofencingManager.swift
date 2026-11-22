@@ -58,7 +58,7 @@ final class GeofencingManager: NSObject, RCTEventEmitter {
     
     @objc
     override static func moduleName() -> String! {
-        return "GeofencingManager"
+        return "GeofencingModule"
     }
     
     @objc
@@ -69,17 +69,17 @@ final class GeofencingManager: NSObject, RCTEventEmitter {
     @objc
     override static func constantsToExport() -> [AnyHashable: Any] {
         return [
-            "EVENT_GEOFENCE_ENTER": RCTGeofencingManager.EventGeofenceEnter,
-            "EVENT_GEOFENCE_EXIT": RCTGeofencingManager.EventGeofenceExit,
-            "EVENT_LOCATION_UPDATE": RCTGeofencingManager.EventLocationUpdate,
+            "EVENT_GEOFENCE_ENTER": GeofencingManager.EventGeofenceEnter,
+            "EVENT_GEOFENCE_EXIT": GeofencingManager.EventGeofenceExit,
+            "EVENT_LOCATION_UPDATE": GeofencingManager.EventLocationUpdate,
         ]
     }
     
     override func supportedEvents() -> [String]! {
         return [
-            RCTGeofencingManager.EventGeofenceEnter,
-            RCTGeofencingManager.EventGeofenceExit,
-            RCTGeofencingManager.EventLocationUpdate,
+            GeofencingManager.EventGeofenceEnter,
+            GeofencingManager.EventGeofenceExit,
+            GeofencingManager.EventLocationUpdate,
         ]
     }
     
@@ -117,7 +117,7 @@ final class GeofencingManager: NSObject, RCTEventEmitter {
                     identifier: reminderId
                 )
                 region.notifyOnEntry = true
-                region.notifyOnExit = false  // We handle exit via the region monitoring callback.
+                region.notifyOnExit = true
                 
                 self.registeredGeofences[reminderId] = region
                 self.locationManager.startMonitoring(for: region)
@@ -189,7 +189,7 @@ final class GeofencingManager: NSObject, RCTEventEmitter {
     
     /// Request location permission.
     @objc
-    func requestWhenInUseAuthorization(
+    func requestLocationPermission(
         _ resolve: @escaping RCTPromiseResolveBlock,
         reject: @escaping RCTPromiseRejectBlock
     ) {

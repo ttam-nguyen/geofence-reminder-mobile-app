@@ -21,9 +21,9 @@ Use only these statuses: `Not started`, `In progress`, `Verified on simulator`, 
 | LOC-02 | Map pin selection | Not started | Not started | |
 | NOTIF-01 | Local notification permission flow | Not started | Not started | |
 | NOTIF-02 | Local notification delivery | Not started | Not started | |
-| GEO-01 | Geofence registration | In progress | In progress | Native modules implemented (iOS CoreLocation + Android Geofencing API). Unit tests pass. Physical device testing pending. |
+| GEO-01 | Geofence registration | In progress | In progress | Native modules implemented (iOS CoreLocation + Android Geofencing API). Unit tests pass. Physical device testing pending. **Phase 8.12:** Fix mock reminders triggering when user not in proximity (Issue 2). |
 | GEO-02 | WAITING_FOR_EXIT → ARMED | In progress | In progress | State machine transition implemented. Physical device testing pending. |
-| GEO-03 | ARMED → TRIGGERED exactly once | In progress | In progress | State machine enforces terminal TRIGGERED. Crash-safety persistence implemented. Physical device testing pending. |
+| GEO-03 | ARMED → TRIGGERED exactly once | In progress | In progress | State machine enforces terminal TRIGGERED. Crash-safety persistence implemented. Physical device testing pending. **Phase 8.12:** Fix notification tap not navigating to detail screen (Issue 3). |
 | GEO-04 | Registration recovery after restart | In progress | In progress | Cold-start reconciliation implemented (registerAllActiveGeofences). Crash-safety resumeStationaryTimer implemented. Physical device testing pending. |
 | GEO-05 | Permission revocation handling | In progress | In progress | setOnPermissionChange callback implemented. Physical device testing pending. |
 | E2E-01 | Maestro create/edit/delete flow | Not started | Not started | After UI freeze |

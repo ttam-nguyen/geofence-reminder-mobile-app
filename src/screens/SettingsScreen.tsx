@@ -13,6 +13,7 @@ import {
 } from "../stores/settingsStore";
 import { notificationService, AuthorizationStatus } from "../services/notificationService";
 import { DeveloperGeofenceControls, isDeveloperMode } from "../components/DeveloperGeofenceControls";
+import { APP_VERSION } from "../config/version";
 
 type SwitchProps = {
   enabled: boolean;
@@ -312,7 +313,7 @@ export function SettingsScreen() {
         {/* About section */}
         <View style={styles.section}>
           <SectionTitle>About</SectionTitle>
-          <Text style={[Typography.caption, { marginTop: Spacing.xs }]}>GPS Reminder v0.0.1</Text>
+          <Text style={[Typography.caption, { marginTop: Spacing.xs }]}>GPS Reminder v{APP_VERSION}</Text>
         </View>
       </ScrollView>
     </SafeArea>

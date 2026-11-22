@@ -133,7 +133,7 @@ export class SQLiteReminderRepository implements ReminderRepository {
     return toReminders(result);
   }
 
-  async save(reminder: Reminder): Promise<Reminder> {
+  async save(reminder: Reminder, _userPosition?: { latitude: number; longitude: number }): Promise<Reminder> {
     await this.ensureDb();
     const db = this.getDb();
     const now = new Date().toISOString();

@@ -7,6 +7,8 @@ import notifee, {
   AndroidImportance,
   AuthorizationStatus as NotifeeAuthorizationStatus,
   TriggerType,
+  AndroidStyle,
+  EventType,
 } from '@notifee/react-native';
 
 // ---------------------------------------------------------------------------
@@ -194,7 +196,12 @@ export class NotifeeNotificationService implements NotificationService {
           android: stripNulls({
             channelId: androidConfig.channelId || DEFAULT_CHANNEL_ID,
             importance: androidConfig.importance ?? AndroidImportance.HIGH,
+            clickAction: 'gps_reminder_open',
             ...(androidConfig.sound && { sound: androidConfig.sound }),
+            style: {
+              type: AndroidStyle.BIGTEXT as AndroidStyle.BIGTEXT,
+              text: notification.body || '',
+            },
           }),
           ios: stripNulls({
             ...(iosConfig.sound && { sound: iosConfig.sound }),

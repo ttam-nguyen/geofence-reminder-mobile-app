@@ -23,9 +23,9 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 import { Reminder, ReminderStatus, LocationSource } from '../types/Reminder';
 import { SafeAreaView as SafeArea } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
-import { store } from '../stores/reminderStore';
+import { store, updateReminder } from '../stores/reminderStore';
 import { validateReminderPayload, clampRadius } from '../models/validation';
-import { reverseGeocode } from '../utils/geocoding';
+import { reverseGeocode, forwardGeocode } from '../utils/geocoding';
 
 interface CreateReminderScreenProps {
   onCancel?: () => void;
@@ -61,11 +61,17 @@ export function CreateReminderScreen(props: Props) {
   const [latitude, setLatitude] = useState<number | undefined>(initialReminder?.latitude);
   const [longitude, setLongitude] = useState<number | undefined>(initialReminder?.longitude);
   const [locationName, setLocationName] = useState<string | null>(initialReminder?.locationName ?? null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
-  // Pin mode state
-  const [locationMode, setLocationMode] = useState<'current' | 'pin'>('current');
+  // Location mode state
+  const [locationMode, setLocationMode] = useState<LocationSource>(
+    initialReminder?.locationSource ?? 'current',
+  );
   const [mapRegion, setMapRegion] = useState<Region | null>(null);
   const [pinCoordinate, setPinCoordinate] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Ref to prevent duplicate geolocation calls between handleCurrentLocation and useEffect.
   const geolocationInProgress = useRef(false);
@@ -116,6 +122,7 @@ export function CreateReminderScreen(props: Props) {
     if (geolocationInProgress.current) return;
 
     geolocationInProgress.current = true;
+    setIsGettingLocation(true);
     try {
       const loc = await getCurrentLocation();
       geolocationInProgress.current = false;
@@ -141,6 +148,8 @@ export function CreateReminderScreen(props: Props) {
     } catch (err) {
       geolocationInProgress.current = false;
       console.error('[CreateReminderScreen] handleCurrentLocation error:', err);
+    } finally {
+      setIsGettingLocation(false);
     }
   }, [getCurrentLocation]);
 
@@ -161,6 +170,37 @@ export function CreateReminderScreen(props: Props) {
     [],
   );
 
+  const handleSearch = useCallback(async () => {
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchError('Enter an address to search.');
+      return;
+    }
+    setIsSearching(true);
+    setSearchError(null);
+    try {
+      const result = await forwardGeocode(query);
+      if (!result) {
+        setSearchError('No results found for that address.');
+        return;
+      }
+      setLatitude(result.latitude);
+      setLongitude(result.longitude);
+      setLocationName(result.displayName);
+      setMapRegion({
+        latitude: result.latitude,
+        longitude: result.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+    } catch (err) {
+      console.error('[CreateReminderScreen] handleSearch error:', err);
+      setSearchError('Search failed. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchQuery]);
+
   const handleSave = async () => {
     // Skip lat/lon validation when not yet available (geolocation pending).
     const validation = validateReminderPayload(
@@ -180,8 +220,16 @@ export function CreateReminderScreen(props: Props) {
     const now = new Date().toISOString();
 
     try {
+      // Fetch the user's actual current position (used only to determine the
+      // reminder's initial status). Never block save on a slow/failed GPS fix.
+      const userLocation = await getCurrentLocation();
+      const userPosition = userLocation
+        ? { latitude: userLocation.lat, longitude: userLocation.lon }
+        : undefined;
+
       if (editing && initialReminder) {
-        // Update existing reminder.
+        // Update existing reminder — use updateReminder to preserve status
+        // while recalculating based on the user's actual GPS position.
         const updated: Reminder = {
           ...initialReminder,
           title: title.trim(),
@@ -197,12 +245,13 @@ export function CreateReminderScreen(props: Props) {
           lastStationaryReadingLat: null,
           lastStationaryReadingLon: null,
           updatedAt: now,
-          locationSource: locationMode === 'pin' ? 'pin' : (initialReminder.locationSource ?? 'current'),
+          locationSource: locationMode,
         };
-        await store.save(updated);
+
+        await updateReminder(updated, userPosition);
       } else {
         // Create new reminder.
-        const locationSource: LocationSource = locationMode === 'pin' ? 'pin' : 'current';
+        const locationSource: LocationSource = locationMode;
         const newReminder: Reminder = {
           id: `reminder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           title: title.trim(),
@@ -224,7 +273,8 @@ export function CreateReminderScreen(props: Props) {
           lastStationaryReadingLat: null,
           lastStationaryReadingLon: null,
         };
-        await store.save(newReminder);
+
+        await store.save(newReminder, userPosition);
       }
 
       navigation.goBack();
@@ -340,6 +390,21 @@ export function CreateReminderScreen(props: Props) {
                 >
                   <Text style={styles.modeButtonText}>Drop Pin</Text>
                 </Pressable>
+                <Pressable
+                  testID="createReminder.location.search.button"
+                  accessibilityLabel="Search address"
+                  accessibilityRole="button"
+                  style={[
+                    styles.modeButton,
+                    locationMode === 'search' && styles.modeButtonActive,
+                  ]}
+                  onPress={() => {
+                    setLocationMode('search');
+                    setPinCoordinate(null);
+                  }}
+                >
+                  <Text style={styles.modeButtonText}>Search</Text>
+                </Pressable>
               </View>
 
               {/* Inline map for pin mode */}
@@ -368,11 +433,44 @@ export function CreateReminderScreen(props: Props) {
                 <Pressable
                   testID="createReminder.location.getCurrent.button"
                   accessibilityLabel="Get current location"
-                  style={styles.getLocationButton}
+                  style={[styles.getLocationButton, isGettingLocation && styles.getLocationButtonDisabled]}
                   onPress={handleCurrentLocation}
+                  disabled={isGettingLocation}
                 >
-                  <Text style={styles.getLocationButtonText}>Get Current Location</Text>
+                  <Text style={styles.getLocationButtonText}>
+                    {isGettingLocation ? 'Getting location...' : 'Get Current Location'}
+                  </Text>
                 </Pressable>
+              )}
+
+              {/* Address search mode */}
+              {locationMode === 'search' && (
+                <View style={styles.searchContainer}>
+                  <TextInput
+                    testID="createReminder.location.search.input"
+                    accessibilityLabel="Search address"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    style={styles.input}
+                    placeholder="e.g. 123 Main St, Springfield"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                  <Pressable
+                    testID="createReminder.location.search.submit"
+                    accessibilityLabel="Search address"
+                    accessibilityRole="button"
+                    style={[styles.getLocationButton, isSearching && styles.getLocationButtonDisabled]}
+                    onPress={handleSearch}
+                    disabled={isSearching}
+                  >
+                    <Text style={styles.getLocationButtonText}>
+                      {isSearching ? 'Searching...' : 'Search Address'}
+                    </Text>
+                  </Pressable>
+                  {searchError ? (
+                    <Text style={styles.errorText}>{searchError}</Text>
+                  ) : null}
+                </View>
               )}
             </View>
 
@@ -510,9 +608,15 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderGlass,
     alignItems: 'center',
   },
+  getLocationButtonDisabled: {
+    opacity: 0.6,
+  },
   getLocationButtonText: {
     ...Typography.bodySmall,
     color: Colors.signalRed,
+  },
+  searchContainer: {
+    gap: Spacing.sm,
   },
   inlineMapContainer: {
     height: 200,

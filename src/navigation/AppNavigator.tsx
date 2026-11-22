@@ -1,7 +1,9 @@
 // Root navigation — bottom tabs with stack overlay for create/detail flows.
 
 import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import { Linking } from "react-native";
+import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
+import { setOnNotificationTap } from "../services/geofencingService";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -11,15 +13,26 @@ import { MapScreen } from "../screens/MapScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { CreateReminderScreen } from "../screens/CreateReminderScreen";
 import { ReminderDetailScreen } from "../screens/ReminderDetailScreen";
+import { store } from "../stores/reminderStore";
 import { Colors, Typography } from "../theme";
 import { enableScreens } from "react-native-screens";
-import { Reminder } from "../types/Reminder";
+import { Reminder, ReminderStatus } from "../types/Reminder";
 
 export type RootStackParamList = {
   Main: undefined;
   CreateReminder: { reminderId?: string; reminder?: Reminder };
   Detail: { reminder: Reminder };
 };
+
+// Deep-link prefix for notification tap navigation.
+const linkingPrefixes = ['gpsreminder://reminder/'];
+
+/** Extract a reminderId from a notification deep link, or return null. */
+function extractReminderIdFromLink(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/gpsreminder:\/\/reminder\/(.+)/);
+  return match ? match[1] : null;
+}
 
 export type TabParamList = {
   Home: undefined;
@@ -75,8 +88,49 @@ function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList
 }
 
 export function AppNavigator() {
+  const navigationRef = useNavigationContainerRef();
+
+  // Handle deep links from notification taps.
+  const handleDeepLink = React.useCallback(
+    async (url: string | null | undefined) => {
+      const reminderId = extractReminderIdFromLink(url ?? null);
+      if (!reminderId) return;
+
+      // Look up the reminder from the store.
+      const reminder = await store.findById(reminderId);
+      if (reminder && reminder.status !== ReminderStatus.DELETED) {
+        (navigationRef as any)?.navigate('Detail', { reminder });
+      }
+    },
+    [navigationRef],
+  );
+
+  // Handle notification taps (foreground) — registered synchronously by initGeofencingService().
+  React.useEffect(() => {
+    setOnNotificationTap(async (tapData) => {
+      const reminderId = tapData.reminderId;
+      if (!reminderId) return;
+
+      const reminder = await store.findById(reminderId);
+      if (reminder && reminder.status !== ReminderStatus.DELETED) {
+        (navigationRef as any)?.navigate('Detail', { reminder });
+      }
+    });
+  }, [navigationRef]);
+
+  const linking = {
+    prefixes: linkingPrefixes,
+    subscribe(listener: (url: string) => void) {
+      Linking.addEventListener('url', (event) => listener(event.url));
+      return () => {}; // no-op cleanup — notifee handles unsubscription above
+    },
+  };
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef as any} linking={linking as any} onReady={() => {
+      // Handle initial URL (app opened from notification).
+      Linking.getInitialURL()?.then(handleDeepLink);
+    }}>
       <Stack.Navigator
         screenOptions={{
           headerStyle: { backgroundColor: Colors.background },

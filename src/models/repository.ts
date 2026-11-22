@@ -11,7 +11,7 @@ export interface ReminderRepository {
   findAll(statusFilter?: ReminderStatus): Promise<Reminder[]>;
 
   /** Save (create or update) a reminder. Returns the saved reminder. */
-  save(reminder: Reminder): Promise<Reminder>;
+  save(reminder: Reminder, userPosition?: { latitude: number; longitude: number }): Promise<Reminder>;
 
   /** Delete a reminder by ID. Returns true if deleted, false if not found. */
   deleteById(id: string): Promise<boolean>;

@@ -10,6 +10,7 @@ import {
   Modal,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Reminder, ReminderStatus } from '../types/Reminder';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
 
@@ -49,6 +50,7 @@ export function ReminderCard({
   onOverflowPress,
 }: ReminderCardProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const insets = useSafeAreaInsets();
   const statusColor = statusColors[reminder.status] || Colors.textMuted;
   const isTriggered = reminder.status === ReminderStatus.TRIGGERED;
 
@@ -103,7 +105,7 @@ export function ReminderCard({
         onRequestClose={() => setShowMenu(false)}
       >
         <Pressable style={styles.menuBackdrop} onPress={() => setShowMenu(false)}>
-          <View style={styles.menu}>
+          <View style={[styles.menu, { paddingBottom: insets.bottom + Spacing.md }]}>
             {!isTriggered && (
               <Pressable
                 testID={`home.reminder.overflow.edit.${reminder.id}`}

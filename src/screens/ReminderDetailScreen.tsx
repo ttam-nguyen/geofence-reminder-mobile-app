@@ -1,7 +1,16 @@
 // ReminderDetail screen — hero summary, map preview, metadata, Edit/Delete.
 
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Alert,
+  Platform,
+} from "react-native";
+import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useFocusEffect } from "@react-navigation/native";
@@ -117,12 +126,30 @@ export function ReminderDetailScreen({ navigation, route }: Props) {
           </Text>
         </View>
 
-        {/* Map preview placeholder */}
-        <View style={styles.mapPreview}>
-          <Text style={Typography.caption}>Map preview</Text>
-          <View style={styles.mapCircle} />
-          <View style={styles.mapPin} />
-        </View>
+        {/* Map preview */}
+        {reminder.latitude != null && reminder.longitude != null ? (
+          <View style={styles.mapPreview}>
+            <MapView
+              provider={Platform.OS === "android" ? PROVIDER_DEFAULT : undefined}
+              style={styles.mapPreviewMap}
+              initialRegion={{
+                latitude: reminder.latitude,
+                longitude: reminder.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+            >
+              <Marker
+                coordinate={{ latitude: reminder.latitude, longitude: reminder.longitude }}
+                pinColor={Colors.signalRed}
+              />
+            </MapView>
+          </View>
+        ) : (
+          <View style={styles.mapPreview}>
+            <Text style={Typography.caption}>Map preview</Text>
+          </View>
+        )}
 
         {/* Description */}
         {reminder.description ? (
@@ -250,24 +277,11 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.borderGlass,
-    alignItems: "center",
-    justifyContent: "center",
     marginBottom: Spacing.lg,
+    overflow: "hidden",
   },
-  mapCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: Colors.signalRed,
-    opacity: 0.4,
-    position: "absolute",
-  },
-  mapPin: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.signalRed,
+  mapPreviewMap: {
+    ...StyleSheet.absoluteFill,
   },
   section: {
     marginBottom: Spacing.lg,

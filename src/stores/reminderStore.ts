@@ -40,7 +40,7 @@ function notifyListeners() {
 }
 
 /** Schedule a notification for an active reminder. */
-async function scheduleReminderNotification(reminder: Reminder): Promise<string | null> {
+export async function scheduleReminderNotification(reminder: Reminder): Promise<string | null> {
   try {
     const settings = await notificationService.checkPermission();
     if (settings !== 'authorized') {
@@ -53,7 +53,7 @@ async function scheduleReminderNotification(reminder: Reminder): Promise<string 
       id: reminder.id,
       title: reminder.title,
       body,
-      data: { reminderId: reminder.id },
+      data: { reminderId: reminder.id, type: 'reminder' },
       trigger: 'immediate',
       android: {
         channelId: 'gps_reminder_default',
@@ -87,7 +87,10 @@ async function cancelReminderNotification(reminder: Reminder): Promise<void> {
 }
 
 /** Save a reminder and bump the version (triggers re-renders). */
-async function save(reminder: Reminder): Promise<Reminder> {
+async function save(
+  reminder: Reminder,
+  userPosition?: { latitude: number; longitude: number },
+): Promise<Reminder> {
   console.log("[Store] Saving reminder:", reminder);
 
   // Get the previous status for geofence reconciliation.
@@ -108,11 +111,33 @@ async function save(reminder: Reminder): Promise<Reminder> {
     await geofencingService.unregisterReminderGeofence(reminder.id);
   }
 
-  // Auto-activate DRAFT reminders based on geolocation.
-  if (reminder.status === ReminderStatus.DRAFT) {
+  // Terminal statuses must never be recomputed.
+  const terminalStatuses: ReminderStatus[] = [
+    ReminderStatus.TRIGGERED,
+    ReminderStatus.COMPLETED,
+    ReminderStatus.CANCELLED,
+    ReminderStatus.PAUSED,
+    ReminderStatus.DELETED,
+  ];
+
+  // Recompute status only when creating a new reminder (DRAFT) or when the
+  // reminder's target location changed. Otherwise preserve the passed-in
+  // status so native transitions (ARMED → ARRIVAL_PENDING, etc.) survive.
+  const locationChanged =
+    existing == null ||
+    existing.latitude !== reminder.latitude ||
+    existing.longitude !== reminder.longitude;
+
+  const shouldRecomputeStatus =
+    !terminalStatuses.includes(reminder.status) &&
+    (reminder.status === ReminderStatus.DRAFT || locationChanged);
+
+  if (shouldRecomputeStatus) {
+    const { latitude: userLat, longitude: userLon } =
+      userPosition ?? { latitude: 0, longitude: 0 };
     const initial = determineInitialStatus(
-      0,           // userLat — default (Phase 8 will pass real position)
-      0,           // userLon — default (Phase 8 will pass real position)
+      userLat,
+      userLon,
       reminder.latitude,
       reminder.longitude,
       reminder.radiusMeters,
@@ -122,16 +147,15 @@ async function save(reminder: Reminder): Promise<Reminder> {
 
   const result = await delegate.save(reminder);
 
-  // Schedule a notification for reminders that are active.
+  // Register native geofence for active statuses (ARMED, ARRIVAL_PENDING).
+  // Notifications are NOT scheduled here — they fire in geofencingService.ts
+  // when triggerArrival() completes stationary qualification.
   const activeStatuses: ReminderStatus[] = [
     ReminderStatus.ARMED,
     ReminderStatus.ARRIVAL_PENDING,
   ];
   if (activeStatuses.includes(result.status)) {
-    await scheduleReminderNotification(result);
-
-    // Register native geofence when reminder becomes active.
-    await geofencingService.registerReminderGeofence(result);
+    await geofencingService.registerReminderGeofence(result, userPosition);
   }
 
   // Handle status transitions: active → inactive (unregister geofence).
@@ -159,18 +183,88 @@ async function deleteById(id: string): Promise<boolean> {
   return result;
 }
 
-/** Seed the store with mock reminders for initial UI development. */
-async function seed(): Promise<void> {
-  const { mockReminders } = await import("../data/mockReminders");
-  for (const reminder of mockReminders) {
-    await save(reminder);
+/**
+ * Purge any previously-persisted mock/seeded reminders. Earlier builds seeded
+ * mock rows on startup; devices that ran those builds may still have them
+ * persisted. This runs once at import time and is idempotent.
+ */
+export const storeReady: Promise<void> = (async () => {
+  try {
+    const all = await delegate.findAll();
+    const mockIds = all.filter(r => r.id.startsWith('mock-')).map(r => r.id);
+    for (const id of mockIds) {
+      await delegate.deleteById(id);
+    }
+  } catch (err) {
+    // A purge failure must never block startup.
+    console.warn('[Store] Failed to purge mock reminders:', err);
   }
-}
+})();
 
-// Seed on first import (only runs once).
-export const storeReady = seed().catch(() => {
-  /* ignore seeding errors */
-});
+/**
+ * Update an existing reminder's properties.
+ * Status is preserved unless the target location changed, in which case it is
+ * recalculated from the user's current GPS position.
+ */
+export async function updateReminder(
+  updated: Reminder,
+  userPosition?: { latitude: number; longitude: number },
+): Promise<Reminder> {
+  const existing = await delegate.findById(updated.id);
+  if (!existing) {
+    throw new Error(`Reminder ${updated.id} not found`);
+  }
+
+  const terminalStatuses: ReminderStatus[] = [
+    ReminderStatus.TRIGGERED,
+    ReminderStatus.COMPLETED,
+    ReminderStatus.CANCELLED,
+    ReminderStatus.PAUSED,
+    ReminderStatus.DELETED,
+  ];
+
+  const locationChanged =
+    existing.latitude !== updated.latitude ||
+    existing.longitude !== updated.longitude;
+
+  const shouldRecomputeStatus =
+    !terminalStatuses.includes(updated.status) &&
+    (updated.status === ReminderStatus.DRAFT || locationChanged);
+
+  let status: ReminderStatus = updated.status;
+  if (shouldRecomputeStatus) {
+    const { latitude: userLat, longitude: userLon } =
+      userPosition ?? { latitude: 0, longitude: 0 };
+    status = determineInitialStatus(
+      userLat,
+      userLon,
+      updated.latitude,
+      updated.longitude,
+      updated.radiusMeters,
+    );
+  }
+
+  const result: Reminder = {
+    ...updated,
+    status,
+    notificationId: existing.notificationId,
+  };
+
+  const saved = await delegate.save(result);
+
+  // Register geofence for active statuses.
+  const activeStatuses: ReminderStatus[] = [
+    ReminderStatus.ARMED,
+    ReminderStatus.ARRIVAL_PENDING,
+  ];
+  if (activeStatuses.includes(result.status)) {
+    await geofencingService.registerReminderGeofence(result, userPosition);
+  }
+
+  _version++;
+  notifyListeners();
+  return saved;
+}
 
 // Re-export the delegate as 'store' for compatibility.
 export const store: ReminderRepository = {

@@ -21,6 +21,8 @@ export interface StationaryCandidate {
   geofenceRadiusMeters: number;
   accumulatedStationaryTimeMs: number; // ms
   lastValidSampleAt: Date | null;
+  lastValidSampleLat: number | null;
+  lastValidSampleLon: number | null;
 }
 
 export interface StationaryServiceConfig {
@@ -58,6 +60,8 @@ class StationaryService {
       geofenceRadiusMeters,
       accumulatedStationaryTimeMs: 0,
       lastValidSampleAt: null,
+      lastValidSampleLat: null,
+      lastValidSampleLon: null,
     });
   }
 
@@ -83,44 +87,57 @@ class StationaryService {
 
     const now = new Date();
 
-    // Calculate speed from the last valid sample (if available).
-    if (candidate.lastValidSampleAt) {
-      const timeDiffSeconds = (now.getTime() - candidate.lastValidSampleAt.getTime()) / 1000;
+    // First valid sample — record it as the movement baseline.
+    // No speed can be computed from a single sample, so return false.
+    if (
+      candidate.lastValidSampleAt === null ||
+      candidate.lastValidSampleLat === null ||
+      candidate.lastValidSampleLon === null
+    ) {
+      candidate.lastValidSampleAt = now;
+      candidate.lastValidSampleLat = sample.latitude;
+      candidate.lastValidSampleLon = sample.longitude;
+      return false;
+    }
 
-      // Skip samples that are too close together (noise).
-      if (timeDiffSeconds < 1) {
-        candidate.lastValidSampleAt = now;
-        return false;
-      }
+    const timeDiffSeconds = (now.getTime() - candidate.lastValidSampleAt.getTime()) / 1000;
 
-      const distanceMeters = this.haversineDistance(
-        candidate.targetCoordinate.latitude,
-        candidate.targetCoordinate.longitude,
-        sample.latitude,
-        sample.longitude
-      );
+    // Skip samples that are too close together (noise).
+    if (timeDiffSeconds < 1) {
+      candidate.lastValidSampleAt = now;
+      candidate.lastValidSampleLat = sample.latitude;
+      candidate.lastValidSampleLon = sample.longitude;
+      return false;
+    }
 
-      const speedMps = distanceMeters / timeDiffSeconds;
+    // Speed is the movement speed between two consecutive location samples,
+    // NOT distance-to-target over time.
+    const distanceMeters = this.haversineDistance(
+      candidate.lastValidSampleLat,
+      candidate.lastValidSampleLon,
+      sample.latitude,
+      sample.longitude
+    );
 
-      if (speedMps >= this.stationarySpeedThreshold) {
-        // User moved too fast — reset stationary timer.
-        candidate.accumulatedStationaryTimeMs = 0;
-        candidate.lastValidSampleAt = now;
-        return false;
-      }
+    const speedMps = distanceMeters / timeDiffSeconds;
 
+    if (speedMps >= this.stationarySpeedThreshold) {
+      // User moved too fast — reset stationary timer.
+      candidate.accumulatedStationaryTimeMs = 0;
+    } else {
       // Speed is below threshold — accumulate stationary time.
       candidate.accumulatedStationaryTimeMs += timeDiffSeconds * 1000;
-      candidate.lastValidSampleAt = now;
+    }
 
-      // Check if stationary duration threshold is reached.
-      const requiredStationaryMs = this.requiredStationaryDurationSeconds * 1000;
-      if (candidate.accumulatedStationaryTimeMs >= requiredStationaryMs) {
-        return true; // Stationary qualification met!
-      }
-    } else {
-      // First valid sample — just record it.
-      candidate.lastValidSampleAt = now;
+    // Always advance the baseline to the current sample.
+    candidate.lastValidSampleAt = now;
+    candidate.lastValidSampleLat = sample.latitude;
+    candidate.lastValidSampleLon = sample.longitude;
+
+    // Check if stationary duration threshold is reached.
+    const requiredStationaryMs = this.requiredStationaryDurationSeconds * 1000;
+    if (candidate.accumulatedStationaryTimeMs >= requiredStationaryMs) {
+      return true; // Stationary qualification met!
     }
 
     return false;
