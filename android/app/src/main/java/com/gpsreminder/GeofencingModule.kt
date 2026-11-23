@@ -2,26 +2,23 @@ package com.gpsreminder
 
 import android.app.PendingIntent
 import android.content.Intent
-import android.os.Build
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
-import com.facebook.react.bridge.ReadableArray
-import com.facebook.react.bridge.WritableMap
-import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.WritableArray
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.tasks.Tasks
 
 /**
- * GeofencingModule — Task 8.3 Android native geofencing module.
+ * GeofencingModule — Google Play Services Geofencing API bridge.
  *
- * Wraps Google Play Services Geofencing API for region monitoring (200m outer boundary)
- * and coordinates with the arrival detection service for stationary qualification.
- *
- * Replaces SpikeModule after Task 8.1 passes.
+ * Registration uses ENTER | EXIT | DWELL transitions. DWELL fires after
+ * [STATIONARY_DURATION_SECONDS] of loitering inside the region, which is the native equivalent
+ * of the JS stationary qualification and the only arrival signal that survives a dead app.
  */
 @com.facebook.react.module.annotations.ReactModule(name = GeofencingModule.NAME)
 class GeofencingModule(reactContext: ReactApplicationContext?) :
@@ -31,37 +28,43 @@ class GeofencingModule(reactContext: ReactApplicationContext?) :
         const val NAME = "GeofencingModule"
         const val GEOFENCE_ACTION = "com.gpsreminder.GEOFENCE_EVENT"
 
-        // Production constants (matching JS/Android spec)
-        private const val GEOFAENCE_RADIUS: Float = 200f
-        private const val STATIONARY_SPEED_THRESHOLD_MPS: Float = 0.89408f  // <2 mph
+        private const val MIN_GEOFENCE_RADIUS_METERS: Float = 200f
         private const val STATIONARY_DURATION_SECONDS: Long = 120L
-        private const val MAX_REGIONS: Int = 100  // Android per-app limit
+        private const val MAX_REGIONS: Int = 100
 
-        // Transition type constants (matching JS spec)
-        const val TRANSITION_ENTER = 1  // GeofenceTransitions.GEOFENCE_TRANSITION_ENTER
-        const val TRANSITION_EXIT = 2   // GeofenceTransitions.GEOFENCE_TRANSITION_EXIT
-        const val TRANSITION_DWELL = 4  // GeofenceTransitions.GEOFENCE_TRANSITION_DWELL (optional, supporting only)
+        const val TRANSITION_ENTER = 1
+        const val TRANSITION_EXIT = 2
+        const val TRANSITION_DWELL = 4
     }
 
     private val context: ReactApplicationContext? = reactContext
 
-    // Registered geofences: reminderId → pair of (Geofence, region info).
-    // We store region info separately because Geofence doesn't expose circularRegion in this API version.
-    private data class RegisteredGeofence(val geofence: Geofence, val lat: Double, val lon: Double, val rad: Float)
-    private val registeredGeofences = mutableMapOf<String, RegisteredGeofence>()
+    private data class RegisteredGeofence(
+        val geofence: Geofence,
+        val lat: Double,
+        val lon: Double,
+        val rad: Float,
+    )
 
-    // PendingIntent for geofence events (single instance, reused)
+    private val registeredGeofences = mutableMapOf<String, RegisteredGeofence>()
     private var geofencePendingIntent: PendingIntent? = null
 
     override fun getName(): String = NAME
 
     init {
-        // Initialize the static reference in GeofenceEventReceiver.
         GeofenceEventReceiver.reactContext = reactContext
     }
 
+    override fun invalidate() {
+        GeofenceEventReceiver.reactContext = null
+        super.invalidate()
+    }
+
     /**
-     * Register a geofence for the given reminder.
+     * Register (or refresh) a geofence.
+     *
+     * `title` and `body` are cached natively so [ArrivalNotifier] can post the arrival
+     * notification while the JS layer is not running.
      */
     @ReactMethod
     fun registerGeofence(
@@ -69,78 +72,90 @@ class GeofencingModule(reactContext: ReactApplicationContext?) :
         latitude: Double,
         longitude: Double,
         radius: Float,
-        promise: Promise
+        title: String?,
+        body: String?,
+        promise: Promise,
     ) {
-        try {
-            val actualRadius = maxOf(radius, GEOFAENCE_RADIUS)
+        val appContext = context ?: run { promise.reject("NO_CONTEXT", "No application context"); return }
 
-            // Validate capacity.
-            if (registeredGeofences.size >= MAX_REGIONS) {
-                promise.reject(
-                    "CAPACITY_EXCEEDED",
-                    "Android limit of $MAX_REGIONS geofences reached. Unregister some before registering new ones.",
-                    null
-                )
-                return
+        try {
+            if (title != null && body != null) {
+                GeofenceEventStore.saveReminderMeta(appContext, reminderId, title, body)
             }
 
-            // Check if already registered — skip duplicate.
-            if (registeredGeofences.containsKey(reminderId)) {
+            val existing = registeredGeofences[reminderId]
+            if (existing != null &&
+                existing.lat == latitude &&
+                existing.lon == longitude
+            ) {
+                // Already registered with the same region — only metadata changed.
                 promise.resolve(null)
                 return
             }
 
-            // Create the geofence.
+            if (existing == null && registeredGeofences.size >= MAX_REGIONS) {
+                promise.reject(
+                    "CAPACITY_EXCEEDED",
+                    "Android limit of $MAX_REGIONS geofences reached. Unregister some before registering new ones.",
+                    null,
+                )
+                return
+            }
+
+            val actualRadius = maxOf(radius, MIN_GEOFENCE_RADIUS_METERS)
+            val loiteringDelayMs = (STATIONARY_DURATION_SECONDS * 1000).toInt()
+
             val geofence = Geofence.Builder()
                 .setRequestId(reminderId)
                 .setCircularRegion(latitude, longitude, actualRadius)
                 .setExpirationDuration(Geofence.NEVER_EXPIRE)
-                .setLoiteringDelay((STATIONARY_DURATION_SECONDS * 1000).toInt())  // DWELL delay = stationary duration
+                // DWELL is the native arrival signal: Play Services waits the loitering delay
+                // inside the region and then reports it, with or without the app running.
+                .setTransitionTypes(
+                    Geofence.GEOFENCE_TRANSITION_ENTER or
+                        Geofence.GEOFENCE_TRANSITION_EXIT or
+                        Geofence.GEOFENCE_TRANSITION_DWELL,
+                )
+                .setLoiteringDelay(loiteringDelayMs)
                 .build()
 
             registeredGeofences[reminderId] = RegisteredGeofence(
                 geofence = geofence,
                 lat = latitude,
                 lon = longitude,
-                rad = actualRadius
+                rad = actualRadius,
             )
 
-            // Rebuild the pending intent with all registered geofences.
             rebuildGeofencePendingIntent()
-
-            // Register all geofences at once (required by Android API).
             registerAllGeofences(promise)
-        } catch (e: Exception) {
-            promise.reject("REGISTER_ERROR", e.message, e)
+        } catch (error: Exception) {
+            promise.reject("REGISTER_ERROR", error.message, error)
         }
     }
 
-    /**
-     * Unregister a geofence for the given reminder.
-     */
     @ReactMethod
     fun unregisterGeofence(reminderId: String, promise: Promise) {
+        val appContext = context ?: run { promise.reject("NO_CONTEXT", "No application context"); return }
+
         try {
-            if (registeredGeofences.remove(reminderId) != null) {
-                // Rebuild and re-register remaining geofences.
-                if (registeredGeofences.isEmpty()) {
-                    removeGeofences(promise)
-                } else {
-                    rebuildGeofencePendingIntent()
-                    registerAllGeofences(promise)
-                }
-            } else {
-                // Already unregistered — not an error.
+            GeofenceEventStore.removeReminderMeta(appContext, reminderId)
+
+            if (registeredGeofences.remove(reminderId) == null) {
                 promise.resolve(null)
+                return
             }
-        } catch (e: Exception) {
-            promise.reject("UNREGISTER_ERROR", e.message, e)
+
+            if (registeredGeofences.isEmpty()) {
+                removeGeofences(promise)
+            } else {
+                rebuildGeofencePendingIntent()
+                registerAllGeofences(promise)
+            }
+        } catch (error: Exception) {
+            promise.reject("UNREGISTER_ERROR", error.message, error)
         }
     }
 
-    /**
-     * List all registered geofences.
-     */
     @ReactMethod
     fun listRegisteredGeofences(promise: Promise) {
         val array = Arguments.createArray()
@@ -157,111 +172,119 @@ class GeofencingModule(reactContext: ReactApplicationContext?) :
     }
 
     /**
-     * Get the current location permission status.
+     * Hand every persisted geofence transition to JS and clear the queue.
+     * JS calls this after the app starts, on resume, and whenever `geofenceEventQueued` fires.
      */
     @ReactMethod
-    fun getAuthorizationStatus(promise: Promise) {
-        val context = this.context ?: run { promise.resolve("unspecified"); return }
+    fun drainPendingGeofenceEvents(promise: Promise) {
+        val appContext = context ?: run { promise.reject("NO_CONTEXT", "No application context"); return }
 
-        val status = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            context.applicationContext.checkPermission(
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.os.Process.myPid(),
-                android.os.Process.myUid()
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            context.applicationContext.checkPermission(
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.os.Process.myPid(),
-                android.os.Process.myUid()
-            )
+        try {
+            val events = GeofenceEventStore.drainEvents(appContext)
+            val array: WritableArray = Arguments.createArray()
+            events.forEach { event ->
+                array.pushMap(Arguments.createMap().apply {
+                    putDouble("id", event.id.toDouble())
+                    putString("reminderId", event.reminderId)
+                    putInt("transitionType", event.transitionType)
+                    putDouble("at", event.at.toDouble())
+                    if (event.latitude != null && event.longitude != null) {
+                        putDouble("latitude", event.latitude)
+                        putDouble("longitude", event.longitude)
+                    }
+                })
+            }
+            promise.resolve(array)
+        } catch (error: Exception) {
+            promise.reject("DRAIN_ERROR", error.message, error)
         }
+    }
+
+    @ReactMethod
+    fun getPendingGeofenceEventCount(promise: Promise) {
+        val appContext = context ?: run { promise.resolve(0); return }
+        promise.resolve(GeofenceEventStore.pendingEventCount(appContext))
+    }
+
+    @ReactMethod
+    fun getAuthorizationStatus(promise: Promise) {
+        val appContext = context ?: run { promise.resolve("unspecified"); return }
+
+        val status = appContext.applicationContext.checkPermission(
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.os.Process.myPid(),
+            android.os.Process.myUid(),
+        )
 
         when (status) {
             android.content.pm.PackageManager.PERMISSION_GRANTED -> promise.resolve("granted")
             android.content.pm.PackageManager.PERMISSION_DENIED -> promise.resolve("denied")
-            else -> promise.resolve("unspecified")  // not determined / restricted
+            else -> promise.resolve("unspecified")
         }
     }
 
-    /**
-     * Request location permission (Android).
-     */
     @ReactMethod
     fun requestLocationPermission(promise: Promise) {
-        // Permissions are requested from JS via @react-native-community/geolocation.
-        // This method is a no-op placeholder for consistency with iOS API.
+        // Permissions are requested from JS (geolocation module / PermissionsAndroid).
         promise.resolve(null)
     }
 
-    // MARK: - Internal helpers
+    // ---------------------------------------------------------------- internal
 
-    /**
-     * Build or rebuild the PendingIntent that receives geofence transition events.
-     */
     private fun rebuildGeofencePendingIntent() {
-        val context = this.context ?: return
+        val appContext = context ?: return
 
-        // Cancel existing intent to avoid duplicates.
         geofencePendingIntent?.cancel()
 
-        val intent = Intent(context, GeofenceEventReceiver::class.java).apply {
+        val intent = Intent(appContext, GeofenceEventReceiver::class.java).apply {
             action = GEOFENCE_ACTION
         }
 
         geofencePendingIntent = PendingIntent.getBroadcast(
-            context,
+            appContext,
             0,
             intent,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            } else {
-                PendingIntent.FLAG_UPDATE_CURRENT
-            }
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
         )
     }
 
-    /**
-     * Register all geofences at once (Android API requires bulk registration).
-     */
     private fun registerAllGeofences(promise: Promise) {
-        val context = this.context ?: run { promise.resolve(null); return }
+        val appContext = context ?: run { promise.resolve(null); return }
 
         if (registeredGeofences.isEmpty()) {
             removeGeofences(promise)
             return
         }
 
-        val geofenceList = registeredGeofences.values.map { it.geofence }
+        val pendingIntent = geofencePendingIntent ?: run {
+            promise.reject("NO_PENDING_INTENT", "Geofence pending intent was not built")
+            return
+        }
+
         val request = GeofencingRequest.Builder()
             .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
-            .addGeofences(geofenceList)
+            .addGeofences(registeredGeofences.values.map { it.geofence })
             .build()
 
         try {
-            val geofencingClient = LocationServices.getGeofencingClient(context)
-            val result = Tasks.await(geofencingClient.addGeofences(request, geofencePendingIntent!!))
+            val client = LocationServices.getGeofencingClient(appContext)
+            Tasks.await(client.addGeofences(request, pendingIntent))
             promise.resolve(null)
-        } catch (e: Exception) {
-            promise.reject("REGISTER_ERROR", "Failed to register geofences: ${e.message}", e)
+        } catch (error: Exception) {
+            promise.reject("REGISTER_ERROR", "Failed to register geofences: ${error.message}", error)
         }
     }
 
-    /**
-     * Remove all registered geofences.
-     */
     private fun removeGeofences(promise: Promise) {
-        val context = this.context ?: run { promise.resolve(null); return }
+        val appContext = context ?: run { promise.resolve(null); return }
+        val pendingIntent = geofencePendingIntent ?: run { promise.resolve(null); return }
 
         try {
-            if (geofencePendingIntent != null) {
-                val geofencingClient = LocationServices.getGeofencingClient(context)
-                Tasks.await(geofencingClient.removeGeofences(geofencePendingIntent!!))
-            }
+            val client = LocationServices.getGeofencingClient(appContext)
+            Tasks.await(client.removeGeofences(pendingIntent))
             promise.resolve(null)
-        } catch (e: Exception) {
-            promise.reject("REMOVE_ERROR", "Failed to remove geofences: ${e.message}", e)
+        } catch (error: Exception) {
+            promise.reject("REMOVE_ERROR", "Failed to remove geofences: ${error.message}", error)
         }
     }
 }

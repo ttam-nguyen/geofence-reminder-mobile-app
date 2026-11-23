@@ -1,7 +1,7 @@
 // Settings screen — full settings with notifications, permissions, privacy, and about sections.
 
 import React, { useState, useCallback, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking, PermissionsAndroid, Platform, Share } from "react-native";
 import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
 import { Colors, Spacing, Typography, BorderRadius, PlatformConstants } from "../theme";
 import {
@@ -14,6 +14,7 @@ import {
 import { notificationService, AuthorizationStatus } from "../services/notificationService";
 import { DeveloperGeofenceControls, isDeveloperMode } from "../components/DeveloperGeofenceControls";
 import { APP_VERSION } from "../config/version";
+import { clearLogs, exportLogs, log } from "../services/logger";
 
 type SwitchProps = {
   enabled: boolean;
@@ -55,6 +56,8 @@ export function SettingsScreen() {
   const [settings, setSettings] = useState(getSettings());
   const [notificationStatus, setNotificationStatus] = useState<AuthorizationStatus>("unspecified");
   const [loading, setLoading] = useState(false);
+  const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
+  const [backgroundLocationGranted, setBackgroundLocationGranted] = useState<boolean | null>(null);
 
   React.useEffect(() => {
     const unsub = subscribe(() => setSettings(getSettings()));
@@ -73,6 +76,47 @@ export function SettingsScreen() {
 
   const openSystemSettings = useCallback(async () => {
     await Linking.openSettings();
+  }, []);
+
+  const refreshBackgroundLocation = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      setBackgroundLocationGranted(null);
+      return;
+    }
+    try {
+      const granted = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+      );
+      setBackgroundLocationGranted(granted);
+    } catch {
+      setBackgroundLocationGranted(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshBackgroundLocation();
+  }, [refreshBackgroundLocation]);
+
+  const handleExportLogs = useCallback(async () => {
+    setDiagnosticsBusy(true);
+    try {
+      const text = await exportLogs();
+      await Share.share({ title: "GPS Reminder diagnostics", message: text });
+      log.info("app", "Diagnostics log exported");
+    } catch (error) {
+      log.error("app", "Failed to export diagnostics log", { error: String(error) });
+    } finally {
+      setDiagnosticsBusy(false);
+    }
+  }, []);
+
+  const handleClearLogs = useCallback(async () => {
+    setDiagnosticsBusy(true);
+    try {
+      await clearLogs();
+    } finally {
+      setDiagnosticsBusy(false);
+    }
   }, []);
 
   // Request notification permission.
@@ -282,6 +326,32 @@ export function SettingsScreen() {
               <Text style={styles.permissionButtonText}>Open Settings</Text>
             </Pressable>
           </View>
+
+          {Platform.OS === "android" && (
+            <View style={styles.permissionRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={Typography.body}>Background location</Text>
+                <Text style={Typography.caption}>
+                  {backgroundLocationGranted === null
+                    ? "Checking…"
+                    : backgroundLocationGranted
+                      ? "Allowed all the time"
+                      : "Required for alerts while the app is closed"}
+                </Text>
+              </View>
+              <Pressable
+                testID="settings.permissions.backgroundLocation"
+                accessibilityLabel="Open system settings to allow background location"
+                accessibilityRole="button"
+                onPress={() => {
+                  void Linking.openSettings();
+                }}
+                style={[styles.permissionButton, styles.glassButton]}
+              >
+                <Text style={styles.permissionButtonText}>Open Settings</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
         <SectionDivider />
@@ -309,6 +379,37 @@ export function SettingsScreen() {
             <SectionDivider />
           </>
         )}
+
+        {/* Diagnostics — available in release builds so field problems can be exported. */}
+        <SectionDivider />
+        <View style={styles.section}>
+          <SectionTitle>Diagnostics</SectionTitle>
+          <Text style={[Typography.caption, { marginBottom: Spacing.sm }]}>
+            Arrival detection keeps a local log of geofence events and status changes.
+          </Text>
+          <View style={styles.permissionRow}>
+            <Pressable
+              testID="settings.diagnostics.exportLogs"
+              accessibilityLabel="Export diagnostics log"
+              accessibilityRole="button"
+              disabled={diagnosticsBusy}
+              onPress={handleExportLogs}
+              style={[styles.permissionButton, styles.glassButton]}
+            >
+              <Text style={styles.permissionButtonText}>{diagnosticsBusy ? "Working…" : "Export logs"}</Text>
+            </Pressable>
+            <Pressable
+              testID="settings.diagnostics.clearLogs"
+              accessibilityLabel="Clear diagnostics log"
+              accessibilityRole="button"
+              disabled={diagnosticsBusy}
+              onPress={handleClearLogs}
+              style={[styles.permissionButton, styles.glassButton]}
+            >
+              <Text style={styles.permissionButtonText}>Clear logs</Text>
+            </Pressable>
+          </View>
+        </View>
 
         {/* About section */}
         <View style={styles.section}>

@@ -1,15 +1,18 @@
 /**
  * StationaryService — stationary qualification logic for arrival detection.
  *
- * A reminder is "stationary" when its speed (from location samples) is below
- * the configured threshold (< 2 mph = 0.89408 m/s) for a continuous period
- * (default: 120 seconds).
+ * A reminder is "stationary" when the user's speed stays below the configured threshold
+ * (< 2 mph = 0.89408 m/s) for a continuous period (default 120 s).
  *
  * Rules:
- * - Each location sample is validated: timestamp < 5 min old, horizontalAccuracy ≤ 50m.
- * - Invalid/missing samples do NOT count toward stationary time.
+ * - Each sample is validated: fix timestamp within `validSampleMaxAge`, accuracy ≤ 50 m.
+ * - Speed uses the timestamps of the two fixes, never wall-clock time between calls. Using
+ *   wall-clock time makes batched or delayed fixes look like stationary time, which produced
+ *   false arrivals after the app woke up.
+ * - A gap between fixes longer than `maxSampleGapMs` cannot prove the user stayed still, so
+ *   accumulation restarts from the new sample.
  * - Speed ≥ threshold resets the accumulated stationary timer.
- * - Exiting the geofence (EXIT event) cancels the arrival candidate.
+ * - An EXIT event cancels the arrival candidate.
  */
 
 import { LocationSample } from '../types/location';
@@ -19,10 +22,11 @@ export interface StationaryCandidate {
   reminderId: string;
   targetCoordinate: { latitude: number; longitude: number };
   geofenceRadiusMeters: number;
-  accumulatedStationaryTimeMs: number; // ms
+  accumulatedStationaryTimeMs: number;
   lastValidSampleAt: Date | null;
   lastValidSampleLat: number | null;
   lastValidSampleLon: number | null;
+  enteredAt: Date;
 }
 
 export interface StationaryServiceConfig {
@@ -30,6 +34,8 @@ export interface StationaryServiceConfig {
   maxHorizontalAccuracyMeters?: number;
   validSampleMaxAgeMs?: number;
   requiredStationaryDurationSeconds?: number;
+  /** Longest gap between fixes that still counts as continuous presence. */
+  maxSampleGapMs?: number;
 }
 
 class StationaryService {
@@ -42,7 +48,15 @@ class StationaryService {
   }
 
   private get validSampleMaxAge(): number {
-    return this.config.validSampleMaxAgeMs ?? 5 * 60 * 1000; // 5 minutes
+    return this.config.validSampleMaxAgeMs ?? 5 * 60 * 1000;
+  }
+
+  private get maxSampleGap(): number {
+    return this.config.maxSampleGapMs ?? 60 * 1000;
+  }
+
+  private get maxHorizontalAccuracy(): number {
+    return this.config.maxHorizontalAccuracyMeters ?? 50;
   }
 
   private get requiredStationaryDurationSeconds(): number {
@@ -50,11 +64,26 @@ class StationaryService {
   }
 
   /**
-   * Create an arrival candidate when a geofence ENTER event is received.
+   * Create an arrival candidate when the user is confirmed inside the geofence.
+   *
+   * An existing candidate keeps its accumulated time: re-entering while already inside
+   * (for example after a re-registration or a duplicate ENTER) must not restart the clock.
    */
-  startArrivalCandidate(reminderId: string, targetLat: number, targetLon: number, geofenceRadiusMeters: number): void {
-    // If a candidate already exists (re-ENTER), reset the timer.
-    this.candidates.set(reminderId, {
+  startArrivalCandidate(
+    reminderId: string,
+    targetLat: number,
+    targetLon: number,
+    geofenceRadiusMeters: number,
+  ): StationaryCandidate {
+    const existing = this.candidates.get(reminderId);
+
+    if (existing) {
+      existing.targetCoordinate = { latitude: targetLat, longitude: targetLon };
+      existing.geofenceRadiusMeters = geofenceRadiusMeters;
+      return existing;
+    }
+
+    const candidate: StationaryCandidate = {
       reminderId,
       targetCoordinate: { latitude: targetLat, longitude: targetLon },
       geofenceRadiusMeters,
@@ -62,143 +91,135 @@ class StationaryService {
       lastValidSampleAt: null,
       lastValidSampleLat: null,
       lastValidSampleLon: null,
-    });
+      enteredAt: new Date(),
+    };
+
+    this.candidates.set(reminderId, candidate);
+    return candidate;
   }
 
   /**
-   * Cancel an arrival candidate (on EXIT event or manual cancel).
+   * Restore a candidate after an app restart with time already accumulated.
+   * `accumulatedMs` is clamped to the required duration so a stale value cannot fire instantly.
    */
+  resumeArrivalCandidate(
+    reminderId: string,
+    targetLat: number,
+    targetLon: number,
+    geofenceRadiusMeters: number,
+    accumulatedMs: number,
+    lastSampleAt: Date | null = null,
+  ): StationaryCandidate {
+    const candidate = this.startArrivalCandidate(reminderId, targetLat, targetLon, geofenceRadiusMeters);
+    const cap = this.requiredStationaryDurationSeconds * 1000;
+    candidate.accumulatedStationaryTimeMs = Math.max(0, Math.min(accumulatedMs, cap));
+    candidate.lastValidSampleAt = lastSampleAt;
+    return candidate;
+  }
+
   cancelArrivalCandidate(reminderId: string): void {
     this.candidates.delete(reminderId);
   }
 
+  hasCandidate(reminderId: string): boolean {
+    return this.candidates.has(reminderId);
+  }
+
   /**
    * Process a location sample for stationary qualification.
-   * Returns true if the user has been stationary long enough to trigger arrival.
+   * Returns true when the stationary requirement is satisfied.
    */
   processLocationSample(reminderId: string, sample: LocationSample): boolean {
     const candidate = this.candidates.get(reminderId);
     if (!candidate) return false;
+    if (!this.isValidSample(sample)) return false;
 
-    // Validate the sample.
-    if (!this.isValidSample(sample)) {
-      return false;
-    }
+    const sampleAt = new Date(sample.timestamp);
 
-    const now = new Date();
-
-    // First valid sample — record it as the movement baseline.
-    // No speed can be computed from a single sample, so return false.
-    if (
-      candidate.lastValidSampleAt === null ||
-      candidate.lastValidSampleLat === null ||
-      candidate.lastValidSampleLon === null
-    ) {
-      candidate.lastValidSampleAt = now;
+    // First valid sample — record the baseline; speed needs two fixes.
+    if (candidate.lastValidSampleAt === null || candidate.lastValidSampleLat === null || candidate.lastValidSampleLon === null) {
+      candidate.lastValidSampleAt = sampleAt;
       candidate.lastValidSampleLat = sample.latitude;
       candidate.lastValidSampleLon = sample.longitude;
       return false;
     }
 
-    const timeDiffSeconds = (now.getTime() - candidate.lastValidSampleAt.getTime()) / 1000;
+    const gapMs = sampleAt.getTime() - candidate.lastValidSampleAt.getTime();
 
-    // Skip samples that are too close together (noise).
-    if (timeDiffSeconds < 1) {
-      candidate.lastValidSampleAt = now;
-      candidate.lastValidSampleLat = sample.latitude;
-      candidate.lastValidSampleLon = sample.longitude;
-      return false;
-    }
+    // Out-of-order or duplicate fix: ignore it without moving the baseline backwards.
+    if (gapMs <= 0) return false;
 
-    // Speed is the movement speed between two consecutive location samples,
-    // NOT distance-to-target over time.
     const distanceMeters = this.haversineDistance(
       candidate.lastValidSampleLat,
       candidate.lastValidSampleLon,
       sample.latitude,
-      sample.longitude
+      sample.longitude,
     );
 
-    const speedMps = distanceMeters / timeDiffSeconds;
+    if (gapMs < 1000) {
+      // Too close together to derive a trustworthy speed: just advance the baseline.
+      this.advanceBaseline(candidate, sample, sampleAt);
+      return false;
+    }
 
-    if (speedMps >= this.stationarySpeedThreshold) {
-      // User moved too fast — reset stationary timer.
+    const speedMps = distanceMeters / (gapMs / 1000);
+
+    if (gapMs > this.maxSampleGap) {
+      // Unknown movement during the gap — restart accumulation from this fix.
+      candidate.accumulatedStationaryTimeMs = 0;
+    } else if (speedMps >= this.stationarySpeedThreshold) {
       candidate.accumulatedStationaryTimeMs = 0;
     } else {
-      // Speed is below threshold — accumulate stationary time.
-      candidate.accumulatedStationaryTimeMs += timeDiffSeconds * 1000;
+      candidate.accumulatedStationaryTimeMs += gapMs;
     }
 
-    // Always advance the baseline to the current sample.
-    candidate.lastValidSampleAt = now;
-    candidate.lastValidSampleLat = sample.latitude;
-    candidate.lastValidSampleLon = sample.longitude;
+    this.advanceBaseline(candidate, sample, sampleAt);
 
-    // Check if stationary duration threshold is reached.
     const requiredStationaryMs = this.requiredStationaryDurationSeconds * 1000;
-    if (candidate.accumulatedStationaryTimeMs >= requiredStationaryMs) {
-      return true; // Stationary qualification met!
-    }
-
-    return false;
+    return candidate.accumulatedStationaryTimeMs >= requiredStationaryMs;
   }
 
-  /**
-   * Check if a location sample is valid for stationary qualification.
-   */
+  private advanceBaseline(candidate: StationaryCandidate, sample: LocationSample, sampleAt: Date): void {
+    candidate.lastValidSampleAt = sampleAt;
+    candidate.lastValidSampleLat = sample.latitude;
+    candidate.lastValidSampleLon = sample.longitude;
+  }
+
+  /** A sample is usable when it is recent enough and accurate enough. */
   private isValidSample(sample: LocationSample): boolean {
-    const now = new Date();
-    const sampleAgeMs = now.getTime() - new Date(sample.timestamp).getTime();
-
-    // Sample must be recent (< 5 minutes old).
-    if (sampleAgeMs > this.validSampleMaxAge) return false;
-
-    // Horizontal accuracy must be ≤ 50m (or NaN/unlimited is invalid).
+    const ageMs = Date.now() - new Date(sample.timestamp).getTime();
+    if (!Number.isFinite(ageMs) || ageMs > this.validSampleMaxAge) return false;
     if (sample.horizontalAccuracy === undefined || sample.horizontalAccuracy === null) return false;
-    if (sample.horizontalAccuracy > 50) return false;
-
+    if (sample.horizontalAccuracy > this.maxHorizontalAccuracy) return false;
     return true;
   }
 
-  /**
-   * Get remaining stationary time for a candidate (for UI display).
-   */
+  /** Remaining stationary time for a candidate, for UI feedback. */
   getRemainingStationaryTimeMs(reminderId: string): number | null {
     const candidate = this.candidates.get(reminderId);
     if (!candidate) return null;
 
     const requiredStationaryMs = this.requiredStationaryDurationSeconds * 1000;
-    const remainingMs = requiredStationaryMs - candidate.accumulatedStationaryTimeMs;
-    return Math.max(0, remainingMs);
+    return Math.max(0, requiredStationaryMs - candidate.accumulatedStationaryTimeMs);
   }
 
-  /**
-   * List all active arrival candidates.
-   */
   listCandidates(): StationaryCandidate[] {
     return Array.from(this.candidates.values());
   }
 
-  /**
-   * Clear all candidates (called on app exit or full reset).
-   */
   clearAll(): void {
     this.candidates.clear();
   }
 
-  /**
-   * Haversine distance in meters.
-   */
   private haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371000; // Earth radius in meters
+    const R = 6371000;
     const dLat = this.toRadians(lat2 - lat1);
     const dLon = this.toRadians(lon2 - lon1);
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
   private toRadians(degrees: number): number {

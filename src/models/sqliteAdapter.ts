@@ -1,41 +1,71 @@
 // SQLite-backed reminder repository using OP-SQLite.
 
-import { open, type QueryResult, type Scalar } from '@op-engineering/op-sqlite';
+import type { QueryResult, Scalar } from '@op-engineering/op-sqlite';
 import { ReminderRepository } from './repository';
 import { Reminder, ReminderStatus } from '../types/Reminder';
+import { getDatabase, closeDatabase } from './database';
 
-const DB_NAME = 'gps-reminder.db';
-const SCHEMA_VERSION = 1;
+/**
+ * Schema versions:
+ * 1 — initial reminders table.
+ * 2 — added the stationary crash-safety columns. Without these the persisted reading never
+ *     saved (the UPDATE targeted columns that did not exist), so a resumed ARRIVAL_PENDING
+ *     reminder could never recover its progress.
+ */
+const SCHEMA_VERSION = 2;
 
-/** Schema version check — returns true if the DB is initialized. */
-async function ensureSchema(db: ReturnType<typeof open>): Promise<void> {
-  const result = await db.execute('PRAGMA user_version');
-  const version = (result.rows?.[0]?.user_version as number) ?? 0;
-  if (version >= SCHEMA_VERSION) return;
+const CREATE_REMINDERS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS reminders (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    locationName TEXT,
+    radiusMeters INTEGER NOT NULL DEFAULT 200,
+    locationSource TEXT NOT NULL DEFAULT 'current',
+    status TEXT NOT NULL DEFAULT 'DRAFT',
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    triggeredAt TEXT,
+    completedAt TEXT,
+    notificationId TEXT,
+    notificationSoundEnabled INTEGER NOT NULL DEFAULT 1,
+    notificationVibrationEnabled INTEGER NOT NULL DEFAULT 1,
+    lastStationaryReadingAt TEXT,
+    lastStationaryReadingLat REAL,
+    lastStationaryReadingLon REAL
+  )
+`;
 
-  await db.transaction(async tx => {
-    await tx.execute(`
-      CREATE TABLE IF NOT EXISTS reminders (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        description TEXT,
-        latitude REAL NOT NULL,
-        longitude REAL NOT NULL,
-        locationName TEXT,
-        radiusMeters INTEGER NOT NULL DEFAULT 200,
-        locationSource TEXT NOT NULL DEFAULT 'current',
-        status TEXT NOT NULL DEFAULT 'DRAFT',
-        createdAt TEXT NOT NULL,
-        updatedAt TEXT NOT NULL,
-        triggeredAt TEXT,
-        completedAt TEXT,
-        notificationId TEXT,
-        notificationSoundEnabled INTEGER NOT NULL DEFAULT 1,
-        notificationVibrationEnabled INTEGER NOT NULL DEFAULT 1
-      )
-    `);
-    await tx.execute(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-  });
+/** Columns added after v1; ALTER TABLE keeps existing user data intact. */
+const MIGRATION_COLUMNS: { name: string; definition: string }[] = [
+  { name: 'lastStationaryReadingAt', definition: 'TEXT' },
+  { name: 'lastStationaryReadingLat', definition: 'REAL' },
+  { name: 'lastStationaryReadingLon', definition: 'REAL' },
+];
+
+/** Create the table and apply additive migrations. Cheap after the first call. */
+async function ensureSchema(): Promise<void> {
+  const db = getDatabase();
+
+  const versionResult = await db.execute('PRAGMA user_version');
+  const version = Number(versionResult.rows?.[0]?.user_version ?? 0);
+
+  await db.execute(CREATE_REMINDERS_TABLE_SQL);
+
+  if (version < SCHEMA_VERSION) {
+    const info = await db.execute('PRAGMA table_info(reminders)');
+    const existing = new Set((info.rows ?? []).map(row => row.name as string));
+
+    for (const column of MIGRATION_COLUMNS) {
+      if (!existing.has(column.name)) {
+        await db.execute(`ALTER TABLE reminders ADD COLUMN ${column.name} ${column.definition}`);
+      }
+    }
+
+    await db.execute(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  }
 }
 
 /** Convert boolean fields to SQLite INTEGER (0/1). */
@@ -57,10 +87,13 @@ function toRow(r: Reminder): Record<string, Scalar> {
     notificationId: r.notificationId ?? null,
     notificationSoundEnabled: r.notificationSoundEnabled ? 1 : 0,
     notificationVibrationEnabled: r.notificationVibrationEnabled ? 1 : 0,
+    lastStationaryReadingAt: r.lastStationaryReadingAt ?? null,
+    lastStationaryReadingLat: r.lastStationaryReadingLat ?? null,
+    lastStationaryReadingLon: r.lastStationaryReadingLon ?? null,
   };
 }
 
-/** Convert SQLite INTEGER fields back to boolean. */
+/** Convert a SQLite row back to a Reminder. */
 function toReminder(row: Record<string, Scalar>): Reminder {
   return {
     id: row.id as string,
@@ -79,9 +112,13 @@ function toReminder(row: Record<string, Scalar>): Reminder {
     notificationId: (row.notificationId as string) || null,
     notificationSoundEnabled: (row.notificationSoundEnabled as number) === 1,
     notificationVibrationEnabled: (row.notificationVibrationEnabled as number) === 1,
-    lastStationaryReadingAt: (row.last_stationary_reading_at as string) || null,
-    lastStationaryReadingLat: (row.last_stationary_reading_lat as number) ?? null,
-    lastStationaryReadingLon: (row.last_stationary_reading_lon as number) ?? null,
+    lastStationaryReadingAt: (row.lastStationaryReadingAt as string) || null,
+    lastStationaryReadingLat: row.lastStationaryReadingLat == null
+      ? null
+      : (row.lastStationaryReadingLat as number),
+    lastStationaryReadingLon: row.lastStationaryReadingLon == null
+      ? null
+      : (row.lastStationaryReadingLon as number),
   };
 }
 
@@ -97,110 +134,91 @@ function toReminders(result: QueryResult): Reminder[] {
 }
 
 export class SQLiteReminderRepository implements ReminderRepository {
-  private db: ReturnType<typeof open> | null = null;
-
-  private getDb(): ReturnType<typeof open> {
-    if (!this.db) {
-      this.db = open({ name: DB_NAME });
-    }
-    return this.db;
-  }
-
-  private async ensureDb(): Promise<void> {
-    const db = this.getDb();
-    await ensureSchema(db);
-  }
-
   async findById(id: string): Promise<Reminder | undefined> {
-    await this.ensureDb();
-    const result = await this.getDb().execute(
-      'SELECT * FROM reminders WHERE id = ?', [id],
-    );
+    await ensureSchema();
+    const result = await getDatabase().execute('SELECT * FROM reminders WHERE id = ?', [id]);
     if (rowCount(result) === 0) return undefined;
     return toReminder(result.rows![0]);
   }
 
   async findAll(statusFilter?: ReminderStatus): Promise<Reminder[]> {
-    await this.ensureDb();
-    const db = this.getDb();
+    await ensureSchema();
     let query = 'SELECT * FROM reminders';
     const params: string[] = [];
     if (statusFilter) {
       query += ' WHERE status = ?';
       params.push(statusFilter);
     }
-    const result = await db.execute(query, params);
-    return toReminders(result);
+    return toReminders(await getDatabase().execute(query, params));
   }
 
-  async save(reminder: Reminder, _userPosition?: { latitude: number; longitude: number }): Promise<Reminder> {
-    await this.ensureDb();
-    const db = this.getDb();
+  async save(reminder: Reminder): Promise<Reminder> {
+    await ensureSchema();
+    const db = getDatabase();
     const now = new Date().toISOString();
     const row = toRow(reminder);
 
     await db.transaction(async tx => {
-      // INSERT OR REPLACE preserves createdAt but updates updatedAt.
+      // INSERT OR REPLACE keeps a single row per id; createdAt is re-written from the row so
+      // callers must pass it through (reminderStore does).
       await tx.execute(
         `INSERT OR REPLACE INTO reminders (
           id, title, description, latitude, longitude, locationName,
           radiusMeters, locationSource, status, createdAt, updatedAt,
           triggeredAt, completedAt, notificationId,
-          notificationSoundEnabled, notificationVibrationEnabled
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          notificationSoundEnabled, notificationVibrationEnabled,
+          lastStationaryReadingAt, lastStationaryReadingLat, lastStationaryReadingLon
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.id, row.title, row.description, row.latitude, row.longitude,
           row.locationName, row.radiusMeters, row.locationSource, row.status,
           row.createdAt, now, row.triggeredAt, row.completedAt,
           row.notificationId ?? null,
           row.notificationSoundEnabled, row.notificationVibrationEnabled,
+          row.lastStationaryReadingAt, row.lastStationaryReadingLat, row.lastStationaryReadingLon,
         ],
       );
     });
 
-    // Re-read to return the persisted version (createdAt preserved by INSERT OR REPLACE).
     return this.findById(reminder.id) as Promise<Reminder>;
   }
 
   async deleteById(id: string): Promise<boolean> {
-    await this.ensureDb();
-    const result = await this.getDb().execute(
-      'DELETE FROM reminders WHERE id = ?', [id],
-    );
+    await ensureSchema();
+    const result = await getDatabase().execute('DELETE FROM reminders WHERE id = ?', [id]);
     return (result.rowsAffected ?? 0) > 0;
   }
 
   async findActive(): Promise<Reminder[]> {
-    await this.ensureDb();
-    const result = await this.getDb().execute(
+    await ensureSchema();
+    const result = await getDatabase().execute(
       "SELECT * FROM reminders WHERE status NOT IN ('COMPLETED', 'CANCELLED', 'DELETED')",
     );
     return toReminders(result);
   }
 
   async findByStatus(status: ReminderStatus): Promise<Reminder[]> {
-    await this.ensureDb();
-    const result = await this.getDb().execute(
+    await ensureSchema();
+    const result = await getDatabase().execute(
       'SELECT * FROM reminders WHERE status = ?', [status],
     );
     return toReminders(result);
   }
 
   async clear(): Promise<void> {
-    await this.ensureDb();
-    await this.getDb().execute('DELETE FROM reminders');
+    await ensureSchema();
+    await getDatabase().execute('DELETE FROM reminders');
   }
 
   async updateStationaryReading(
     id: string,
     reading: { readingAt: string; latitude: number; longitude: number },
   ): Promise<Reminder | undefined> {
-    await this.ensureDb();
-    const db = this.getDb();
-
-    // Update the stationary reading fields.
-    await db.execute(
-      'UPDATE reminders SET last_stationary_reading_at = ?, last_stationary_reading_lat = ?, last_stationary_reading_lon = ?, updated_at = ? WHERE id = ?',
+    await ensureSchema();
+    await getDatabase().execute(
+      `UPDATE reminders
+         SET lastStationaryReadingAt = ?, lastStationaryReadingLat = ?, lastStationaryReadingLon = ?, updatedAt = ?
+       WHERE id = ?`,
       [
         reading.readingAt,
         reading.latitude,
@@ -210,15 +228,11 @@ export class SQLiteReminderRepository implements ReminderRepository {
       ],
     );
 
-    // Return the updated reminder.
     return this.findById(id);
   }
 
-  /** Close the database connection (useful for testing). */
+  /** Close the shared database connection (useful for testing). */
   async close(): Promise<void> {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-    }
+    closeDatabase();
   }
 }

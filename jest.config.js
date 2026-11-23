@@ -4,6 +4,8 @@ module.exports = {
     'node_modules/(?!(@react-navigation|@react-native|react-native|react-native-safe-area-context|react-native-screens|react-native-get-random-values|react-native-pager-view|react-native-image-zoom-viewer)/)',
   ],
   moduleNameMapper: {
+    '^@react-native-async-storage/async-storage$': '<rootDir>/__mocks__/@react-native-async-storage+async-storage.js',
+    '^@notifee/react-native$': '<rootDir>/__mocks__/@notifee+react-native.js',
     '^@op-engineering/op-sqlite$': '<rootDir>/__mocks__/@op-engineering/op-sqlite.js',
     '^sqliteAdapter$': '<rootDir>/__mocks__/sqliteAdapterMock.js',
     '^../stores/reminderStore$': '<rootDir>/__mocks__/reminderStoreMock.js',

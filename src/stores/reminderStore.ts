@@ -7,6 +7,7 @@ import { Reminder, ReminderStatus } from "../types/Reminder";
 import { determineInitialStatus } from "../models/initialStatus";
 import { notificationService } from "../services/notificationService";
 import * as geofencingService from "../services/geofencingService";
+import { log } from "../services/logger";
 
 /** Singleton repository instance shared across all screens. */
 let delegate: ReminderRepository;
@@ -147,19 +148,27 @@ async function save(
 
   const result = await delegate.save(reminder);
 
-  // Register native geofence for active statuses (ARMED, ARRIVAL_PENDING).
-  // Notifications are NOT scheduled here — they fire in geofencingService.ts
-  // when triggerArrival() completes stationary qualification.
-  const activeStatuses: ReminderStatus[] = [
+  if (previousStatus !== result.status) {
+    log.info("store", `Status ${previousStatus} → ${result.status}`, {
+      reminderId: result.id,
+      userPosition: userPosition ?? null,
+    });
+  }
+
+  // Register a native geofence for every status that can still transition.
+  // WAITING_FOR_EXIT matters: a reminder created while the user is already inside its
+  // radius stays in that state until the OS reports an EXIT, so the fence must be live.
+  const registeredStatuses: ReminderStatus[] = [
     ReminderStatus.ARMED,
+    ReminderStatus.WAITING_FOR_EXIT,
     ReminderStatus.ARRIVAL_PENDING,
   ];
-  if (activeStatuses.includes(result.status)) {
+  if (registeredStatuses.includes(result.status)) {
     await geofencingService.registerReminderGeofence(result, userPosition);
   }
 
   // Handle status transitions: active → inactive (unregister geofence).
-  if (activeStatuses.includes(previousStatus) && !activeStatuses.includes(result.status)) {
+  if (registeredStatuses.includes(previousStatus) && !registeredStatuses.includes(result.status)) {
     await geofencingService.unregisterReminderGeofence(result.id);
   }
 

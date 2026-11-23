@@ -1,54 +1,58 @@
 /**
- * GeofencingService — TypeScript service layer for native geofence integration.
+ * GeofencingService — TypeScript orchestration for native geofencing.
  *
- * This service:
- * 1. Registers/unregisters native geofences via the native module bridge.
- * 2. Listens for native ENTER/EXIT events from both platforms.
- * 3. Manages arrival candidates (stationary qualification).
- * 4. Integrates with the state machine for status transitions.
+ * Design (and why it changed):
  *
- * Architecture:
- * - On reminder save (status change): register or unregister native geofence.
- * - On native ENTER event: processGeofenceEvent() → ARMED → ARRIVAL_PENDING.
- *   Start stationary qualification (bounded location updates).
- * - On native EXIT event: processGeofenceEvent() → ARRIVAL_PENDING → ARMED.
- *   Cancel stationary qualification.
- * - StationaryService: speed < 2 mph for 120s → TRIGGERED (notify user).
- * - Speed ≥ 2 mph or geofence exit → reset to ARMED.
+ * Native transitions are the source of truth. Google Play Services and CoreLocation deliver
+ * ENTER/EXIT/DWELL whether or not the app is running, so both platforms persist every
+ * transition natively (Android: GeofenceEventStore). JS drains that queue on start, on resume,
+ * and whenever the native side signals "events available". The old code only listened to a live
+ * event emitter, so every transition that happened while the app was backgrounded or killed was
+ * silently dropped — the user saw a status that was hours out of date.
+ *
+ * DWELL is the native arrival signal: the OS waits `loiteringDelay` (120 s) inside the region,
+ * which is exactly the stationary requirement. Arrival therefore does not need JS polling.
+ *
+ * The JS stationary timer is kept as a supplement for the foreground case (better UI feedback),
+ * and app-state reconciliation re-derives status from the current position so a stale
+ * ARRIVAL_PENDING cannot survive a resume.
  */
 
-import { NativeEventEmitter, NativeModules } from 'react-native';
+import {
+  AppState,
+  AppStateStatus,
+  Linking,
+  NativeEventEmitter,
+  NativeModules,
+  PermissionsAndroid,
+  Platform,
+} from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import notifee, { EventType } from '@notifee/react-native';
 import { ReminderStatus, Reminder } from '../types/Reminder';
 import { processGeofenceEvent, GeofenceEventType } from '../models/eventProcessor';
 import { store, scheduleReminderNotification } from '../stores/reminderStore';
 import { StationaryService, StationaryCandidate } from './stationaryService';
+import { haversineDistance } from '../models/haversine';
+import { log } from './logger';
 import type { LocationSample } from '../types/location';
-
-// Haversine distance (meters) between two lat/lon pairs.
-function haversineMeters(
-  lat1: number, lon1: number,
-  lat2: number, lon2: number,
-): number {
-  const R = 6_371_000; // Earth radius in meters
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) *
-      Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 const GeofencingModule = NativeModules.GeofencingModule as any;
 
-const nativeEventEmitter = new NativeEventEmitter(GeofencingModule);
+const GEOFENCE_QUEUED_EVENT = 'geofenceEventQueued';
 
-// Event names (matching native modules).
-const GEOFENCE_ENTER_EVENT = 'geofenceEnter';
-const GEOFENCE_EXIT_EVENT = 'geofenceExit';
+export const TRANSITION_ENTER = 1;
+export const TRANSITION_EXIT = 2;
+export const TRANSITION_DWELL = 4;
+
+/** Safety-net drain while the app is in the foreground. */
+const FOREGROUND_DRAIN_INTERVAL_MS = 60_000;
+
+/** A persisted stationary reading is only usable for recovery if it is this recent. */
+const MAX_STATIONARY_RECOVERY_GAP_MS = 5 * 60 * 1000;
+
+/** How long a resolved position is trusted during reconciliation. */
+const RECONCILE_MAX_AGE_MS = 30_000;
 
 export interface GeofenceInfo {
   reminderId: string;
@@ -57,219 +61,290 @@ export interface GeofenceInfo {
   radius: number;
 }
 
-export interface GeofenceEvent {
+/** A geofence transition as persisted by the native layer. */
+export interface NativeGeofenceEvent {
+  id: number;
   reminderId: string;
-  transitionType: number; // 1=ENTER, 2=EXIT, 4=DWELL
+  transitionType: number;
+  /** Epoch milliseconds when the transition happened. */
+  at: number;
   latitude?: number;
   longitude?: number;
 }
 
-// Constants matching production spec.
-export const TRANSITION_ENTER = 1;
-export const TRANSITION_EXIT = 2;
-export const TRANSITION_DWELL = 4;
+/** Kept for the Developer Mode controls. */
+export interface GeofenceEvent {
+  reminderId: string;
+  transitionType: number;
+  latitude?: number;
+  longitude?: number;
+}
 
-// Geofence registration state (reminderId → Reminder).
+type NotificationTapData = { reminderId?: string };
+
 const registeredGeofences = new Map<string, Reminder>();
-
-// Stationary service for arrival detection.
 const stationaryService = new StationaryService();
 
-// Callbacks for geofence events (set by the app).
 let onStatusChange: ((reminderId: string, newStatus: ReminderStatus) => void) | null = null;
 let onArrivalTriggered: ((reminderId: string) => void) | null = null;
 let onStationaryUpdate: ((reminderId: string, remainingMs: number) => void) | null = null;
 let onPermissionChange: ((permissionState: string) => void) | null = null;
-type NotificationTapData = { reminderId?: string };
 let onNotificationTap: ((data: NotificationTapData) => void) | null = null;
 
-// Interval IDs for stationary update polling (reminderId → intervalId).
 const updateIntervals = new Map<string, ReturnType<typeof setInterval>>();
-
-// GPS watch IDs for stationary detection (reminderId → watchId).
 const gpsWatchIds = new Map<string, string | number>();
 
-/**
- * Initialize the geofencing service. Sets up native event listeners.
- * Call once at app startup (in App.tsx or root component).
- */
+let initialized = false;
+let drainInFlight: Promise<void> | null = null;
+let reconcileInFlight: Promise<void> | null = null;
+let foregroundDrainTimer: ReturnType<typeof setInterval> | null = null;
+let appStateSubscription: { remove: () => void } | null = null;
+let lastAppState: AppStateStatus = (AppState.currentState ?? 'active') as AppStateStatus;
+
+/** True while the app is in the foreground — sampling is paused otherwise. */
+let appActive = lastAppState === 'active';
+
+// ---------------------------------------------------------------------------
+// Initialisation
+// ---------------------------------------------------------------------------
+
+/** Initialise listeners, drain persisted events, and restore geofence state. */
 export function initGeofencingService(): void {
-  // Listen for native ENTER events.
-  (nativeEventEmitter.addListener as any)(
-    GEOFENCE_ENTER_EVENT,
-    (event: GeofenceEvent) => handleNativeEnter(event)
-  );
+  if (initialized) {
+    log.debug('geofence', 'initGeofencingService already initialised — skipping');
+    return;
+  }
+  initialized = true;
 
-  // Listen for native EXIT events.
-  (nativeEventEmitter.addListener as any)(
-    GEOFENCE_EXIT_EVENT,
-    (event: GeofenceEvent) => handleNativeExit(event)
-  );
+  // The native module is absent in unit tests and in builds where the module was not compiled.
+  // Geofencing is then unavailable, but the app must still start.
+  const emitter = GeofencingModule ? new NativeEventEmitter(GeofencingModule) : null;
+  if (!emitter) {
+    log.warn('geofence', 'Native GeofencingModule unavailable — geofencing disabled');
+  } else {
+    emitter.addListener(GEOFENCE_QUEUED_EVENT, payload => {
+      log.debug('geofence', 'Native signalled queued geofence events', payload);
+      void drainNativeGeofenceEvents();
+    });
+  }
 
-  // Listen for notification taps (foreground).
   notifee.onForegroundEvent(async ({ type, detail }) => {
-    if (type === EventType.PRESS) {
-      const notificationId = detail?.notification?.id;
-      const data = (detail?.notification?.data as NotificationTapData) || {};
-      if (onNotificationTap) {
-        onNotificationTap({ reminderId: typeof notificationId === 'string' ? notificationId : data.reminderId });
-      }
+    if (type !== EventType.PRESS) return;
+    const notificationId = detail?.notification?.id;
+    const data = (detail?.notification?.data as NotificationTapData) || {};
+    log.info('notification', 'Notification pressed (foreground)', { notificationId, data });
+    if (onNotificationTap) {
+      onNotificationTap({
+        reminderId: typeof notificationId === 'string' ? notificationId : data.reminderId,
+      });
     }
   });
 
-  // Re-register geofences for all active reminders on startup.
-  registerAllActiveGeofences().catch(err => {
-    console.error('[GeofencingService] Failed to re-register active geofences on startup:', err);
-  });
+  appStateSubscription = AppState.addEventListener('change', handleAppStateChange) as unknown as {
+    remove: () => void;
+  };
+
+  log.info('geofence', 'Geofencing service initialising');
+
+  if (GeofencingModule && appActive) {
+    startForegroundDrainTimer();
+  }
+
+  void (async () => {
+    // Order matters: register geofences first so the OS starts reporting, then process
+    // anything that happened while the app was not running, then reconcile with the fix.
+    await registerAllActiveGeofences().catch(error =>
+      log.error('geofence', 'Failed to re-register active geofences', { error: String(error) }),
+    );
+    await drainNativeGeofenceEvents();
+    await reconcileActiveReminders('startup');
+  })();
 }
 
-/**
- * Set the callback for notification tap events.
- * Call from AppNavigator to wire up navigation when a notification is tapped.
- */
+function handleAppStateChange(nextState: AppStateStatus): void {
+  const previous = lastAppState;
+  lastAppState = nextState;
+  appActive = nextState === 'active';
+
+  log.info('app', `App state: ${previous} → ${nextState}`);
+
+  if (nextState === 'active') {
+    startForegroundDrainTimer();
+    void drainNativeGeofenceEvents();
+    void reconcileActiveReminders('resume');
+    void resumeArrivalSampling();
+  } else {
+    stopForegroundDrainTimer();
+    // Foreground-only sampling: the native DWELL transition covers the background case and
+    // costs no battery. Watches and timers are dropped while backgrounded.
+    pauseArrivalSampling();
+  }
+}
+
+function startForegroundDrainTimer(): void {
+  if (foregroundDrainTimer !== null) return;
+  foregroundDrainTimer = setInterval(() => {
+    void drainNativeGeofenceEvents();
+  }, FOREGROUND_DRAIN_INTERVAL_MS);
+  // Unref under Node (Jest) so the safety-net timer cannot hold the test process open.
+  (foregroundDrainTimer as unknown as { unref?: () => void }).unref?.();
+}
+
+function stopForegroundDrainTimer(): void {
+  if (foregroundDrainTimer === null) return;
+  clearInterval(foregroundDrainTimer);
+  foregroundDrainTimer = null;
+}
+
+// ---------------------------------------------------------------------------
+// Callback setters
+// ---------------------------------------------------------------------------
+
 export function setOnNotificationTap(callback: (data: NotificationTapData) => void): void {
   onNotificationTap = callback;
 }
 
-/**
- * Set the callback for status changes triggered by geofence events.
- */
 export function setOnStatusChange(callback: (reminderId: string, newStatus: ReminderStatus) => void): void {
   onStatusChange = callback;
 }
 
-/**
- * Set the callback when arrival is triggered (stationary qualification met).
- */
 export function setOnArrivalTriggered(callback: (reminderId: string) => void): void {
   onArrivalTriggered = callback;
 }
 
-/**
- * Set the callback for stationary time updates (remaining seconds).
- */
 export function setOnStationaryUpdate(callback: (reminderId: string, remainingMs: number) => void): void {
   onStationaryUpdate = callback;
 }
 
-/**
- * Register a geofence for a reminder (called when status is ARMED or WAITING_FOR_EXIT).
- */
+export function setOnPermissionChange(callback: (permissionState: string) => void): void {
+  onPermissionChange = callback;
+}
+
+// ---------------------------------------------------------------------------
+// Geofence registration
+// ---------------------------------------------------------------------------
+
+/** Build the notification copy cached natively so arrival can notify with the app closed. */
+function buildArrivalCopy(reminder: Reminder): { title: string; body: string } {
+  return {
+    title: reminder.title,
+    body: reminder.description || `Reminder at ${reminder.locationName || 'this location'}`,
+  };
+}
+
+/** Register a native geofence for an active reminder. */
 export async function registerReminderGeofence(
   reminder: Reminder,
   userPosition?: { latitude: number; longitude: number },
 ): Promise<void> {
   if (reminder.status !== ReminderStatus.ARMED && reminder.status !== ReminderStatus.WAITING_FOR_EXIT) {
-    return; // Only register active reminders.
+    log.debug('geofence', 'Skip registration — reminder is not active', {
+      reminderId: reminder.id,
+      status: reminder.status,
+    });
+    return;
   }
 
-  // Safety check: warn if the geofence is >10km from the user's current position.
-  // This catches mock reminders seeded far away when the user is not in proximity.
   if (userPosition) {
-    const dist = haversineMeters(
+    const distance = haversineDistance(
       userPosition.latitude,
       userPosition.longitude,
       reminder.latitude,
       reminder.longitude,
     );
-    const MAX_REGISTER_DISTANCE = 10_000; // 10 km
-    if (dist > MAX_REGISTER_DISTANCE) {
-      console.warn(
-        `[GeofencingService] Registering geofence for ${reminder.id} is ${Math.round(dist)}m ` +
-          `from user position — geofence will only fire when user is physically nearby.`,
-      );
+    if (distance > 10_000) {
+      log.info('geofence', 'Registering a far-away geofence', {
+        reminderId: reminder.id,
+        distanceMeters: Math.round(distance),
+      });
     }
   }
 
+  const copy = buildArrivalCopy(reminder);
+
   try {
-    await GeofencingModule.registerGeofence(reminder.id, reminder.latitude, reminder.longitude, reminder.radiusMeters);
+    await GeofencingModule.registerGeofence(
+      reminder.id,
+      reminder.latitude,
+      reminder.longitude,
+      reminder.radiusMeters,
+      copy.title,
+      copy.body,
+    );
     registeredGeofences.set(reminder.id, reminder);
+    log.info('geofence', 'Geofence registered', {
+      reminderId: reminder.id,
+      radius: reminder.radiusMeters,
+      status: reminder.status,
+    });
   } catch (error) {
-    console.error(`[GeofencingService] Failed to register geofence for ${reminder.id}:`, error);
+    log.error('geofence', 'Failed to register geofence', {
+      reminderId: reminder.id,
+      error: String(error),
+    });
   }
 }
 
-/**
- * Unregister a geofence for a reminder (called when status becomes inactive).
- */
+/** Unregister a native geofence. */
 export async function unregisterReminderGeofence(reminderId: string): Promise<void> {
   try {
     await GeofencingModule.unregisterGeofence(reminderId);
     registeredGeofences.delete(reminderId);
+    log.info('geofence', 'Geofence unregistered', { reminderId });
   } catch (error) {
-    console.error(`[GeofencingService] Failed to unregister geofence for ${reminderId}:`, error);
+    log.error('geofence', 'Failed to unregister geofence', { reminderId, error: String(error) });
   }
 }
 
-/**
- * Register geofences for all active (ARMED/WAITING_FOR_EXIT/ARRIVAL_PENDING) reminders.
- * Called on cold start to re-register after app restart.
- * Also resumes stationary timers for reminders in ARRIVAL_PENDING state (crash-safety).
- */
+/** Re-register geofences for every active reminder and recover in-flight arrivals. */
 export async function registerAllActiveGeofences(): Promise<void> {
   const activeReminders = await store.findActive();
+
+  log.info('geofence', 'Re-registering active geofences', {
+    count: activeReminders.length,
+    ids: activeReminders.map(r => `${r.id}:${r.status}`),
+  });
 
   for (const reminder of activeReminders) {
     await registerReminderGeofence(reminder);
 
-    // Crash-safety: for reminders in ARRIVAL_PENDING, resume the stationary
-    // timer from the last persisted valid reading (if within max sample gap).
     if (reminder.status === ReminderStatus.ARRIVAL_PENDING) {
       await resumeStationaryTimer(reminder);
     }
   }
 }
 
-/**
- * List all registered geofences (for diagnostics/developer tools).
- */
 export async function listRegisteredGeofences(): Promise<GeofenceInfo[]> {
   try {
     return await GeofencingModule.listRegisteredGeofences();
   } catch {
-    // Fallback: return our tracked list if native module is unavailable.
-    const result: GeofenceInfo[] = [];
-    for (const reminder of registeredGeofences.values()) {
-      result.push({
-        reminderId: reminder.id,
-        latitude: reminder.latitude,
-        longitude: reminder.longitude,
-        radius: reminder.radiusMeters,
-      });
-    }
-    return result;
+    return Array.from(registeredGeofences.values()).map(reminder => ({
+      reminderId: reminder.id,
+      latitude: reminder.latitude,
+      longitude: reminder.longitude,
+      radius: reminder.radiusMeters,
+    }));
   }
 }
 
-/**
- * Check location permission status.
- */
 export async function getAuthorizationStatus(): Promise<string> {
   try {
     return await GeofencingModule.getAuthorizationStatus();
   } catch {
-    return 'unknown'; // Fallback when native module is unavailable.
+    return 'unknown';
   }
 }
 
-/**
- * Set the callback for permission state changes.
- */
-export function setOnPermissionChange(callback: (permissionState: string) => void): void {
-  onPermissionChange = callback;
-}
-
-/**
- * Request location permission from the user.
- */
+/** Request foreground location permission. */
 export async function requestLocationPermission(): Promise<void> {
   try {
     const result = await GeofencingModule.requestLocationPermission();
+    log.info('permission', 'Location permission requested', { result });
     if (onPermissionChange) {
       onPermissionChange(typeof result === 'string' ? result : 'authorized');
     }
   } catch (error) {
-    console.error('[GeofencingService] Failed to request location permission:', error);
+    log.error('permission', 'Location permission request failed', { error: String(error) });
     if (onPermissionChange) {
       onPermissionChange('denied');
     }
@@ -277,130 +352,260 @@ export async function requestLocationPermission(): Promise<void> {
 }
 
 /**
- * Handle a native geofence ENTER event.
+ * Background location is required for geofence transitions while the app is not in the
+ * foreground on Android 10+. Without it the OS only reports transitions while the app is open,
+ * which is the reason statuses appeared frozen.
+ *
+ * Android 11+ forbids requesting it directly, so the user is sent to the app settings screen.
  */
-async function handleNativeEnter(event: GeofenceEvent): Promise<void> {
-  const { reminderId } = event;
-
-  // Get the current reminder from the store.
-  const reminder = await store.findById(reminderId);
-  if (!reminder) {
-    console.warn(`[GeofencingService] ENTER event for unknown reminder ${reminderId}`);
-    return;
+export async function requestBackgroundLocationPermission(): Promise<
+  'granted' | 'denied' | 'settings-opened' | 'unsupported'
+> {
+  if (Platform.OS !== 'android') {
+    return 'unsupported';
   }
 
-  // Process through state machine.
-  try {
-    const result = processGeofenceEvent(reminder.status, GeofenceEventType.ENTER);
+  const permission = PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION;
+  const sdkVersion = typeof Platform.Version === 'number' ? Platform.Version : Number(Platform.Version);
 
-    if (result.transitioned) {
-      const updatedReminder: Reminder = { ...reminder, status: result.newStatus, updatedAt: new Date().toISOString() };
-      await store.save(updatedReminder);
+  const already = await PermissionsAndroid.check(permission);
+  if (already) {
+    log.info('permission', 'Background location already granted');
+    return 'granted';
+  }
 
-      // Notify subscribers.
-      if (onStatusChange) {
-        onStatusChange(reminderId, result.newStatus);
+  if (sdkVersion >= 30) {
+    // Android 11+: the OS only grants "Allow all the time" through the settings screen.
+    log.warn('permission', 'Background location must be granted from app settings (Android 11+)');
+    await Linking.openSettings();
+    return 'settings-opened';
+  }
+
+  const result = await PermissionsAndroid.request(permission, {
+    title: 'Background location',
+    message:
+      'GPS Reminder needs background location to detect arrivals while the app is closed.',
+    buttonPositive: 'Allow',
+    buttonNegative: 'Deny',
+  });
+
+  log.info('permission', 'Background location request result', { result });
+  return result === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied';
+}
+
+// ---------------------------------------------------------------------------
+// Native event draining
+// ---------------------------------------------------------------------------
+
+/**
+ * Drain every transition persisted by the native layer and apply it in order.
+ * Safe to call repeatedly: the native queue is cleared atomically.
+ */
+export function drainNativeGeofenceEvents(): Promise<void> {
+  if (drainInFlight) return drainInFlight;
+
+  drainInFlight = (async () => {
+    try {
+      const events: NativeGeofenceEvent[] = await GeofencingModule.drainPendingGeofenceEvents();
+      if (!events || events.length === 0) return;
+
+      const chronological = [...events].sort((a, b) => a.at - b.at);
+      log.info('geofence', `Draining ${chronological.length} persisted geofence event(s)`, {
+        events: chronological.map(e => `${labelFor(e.transitionType)}:${e.reminderId}@${new Date(e.at).toISOString()}`),
+      });
+
+      for (const event of chronological) {
+        await handleNativeGeofenceEvent(event);
       }
-
-      // If ARRIVAL_PENDING — start stationary qualification.
-      if (result.newStatus === ReminderStatus.ARRIVAL_PENDING) {
-        startArrivalCandidate(reminderId, reminder.latitude, reminder.longitude, reminder.radiusMeters);
-      }
+    } catch (error) {
+      log.error('geofence', 'Failed to drain native geofence events', { error: String(error) });
+    } finally {
+      drainInFlight = null;
     }
-  } catch (error) {
-    console.error(`[GeofencingService] Failed to process ENTER for ${reminderId}:`, error);
+  })();
+
+  return drainInFlight;
+}
+
+function labelFor(transitionType: number): string {
+  switch (transitionType) {
+    case TRANSITION_ENTER:
+      return 'ENTER';
+    case TRANSITION_EXIT:
+      return 'EXIT';
+    case TRANSITION_DWELL:
+      return 'DWELL';
+    default:
+      return `UNKNOWN(${transitionType})`;
   }
 }
 
-/**
- * Handle a native geofence EXIT event.
- */
-async function handleNativeExit(event: GeofenceEvent): Promise<void> {
-  const { reminderId } = event;
-
-  // Get the current reminder from the store.
-  const reminder = await store.findById(reminderId);
+async function handleNativeGeofenceEvent(event: NativeGeofenceEvent): Promise<void> {
+  const reminder = await store.findById(event.reminderId);
   if (!reminder) {
-    console.warn(`[GeofencingService] EXIT event for unknown reminder ${reminderId}`);
+    log.warn('geofence', 'Transition for unknown reminder', { event });
     return;
   }
 
-  // Process through state machine.
-  try {
-    const result = processGeofenceEvent(reminder.status, GeofenceEventType.EXIT);
+  log.info('geofence', `${labelFor(event.transitionType)} applied`, {
+    reminderId: reminder.id,
+    status: reminder.status,
+    at: new Date(event.at).toISOString(),
+    latitude: event.latitude,
+    longitude: event.longitude,
+  });
 
-    if (result.transitioned) {
-      const updatedReminder: Reminder = { ...reminder, status: result.newStatus, updatedAt: new Date().toISOString() };
-      await store.save(updatedReminder);
-
-      // Notify subscribers.
-      if (onStatusChange) {
-        onStatusChange(reminderId, result.newStatus);
-      }
-
-      // If back to ARMED — cancel stationary qualification.
-      if (result.newStatus === ReminderStatus.ARMED) {
-        cancelArrivalCandidate(reminderId);
-      }
-    }
-  } catch (error) {
-    console.error(`[GeofencingService] Failed to process EXIT for ${reminderId}:`, error);
+  switch (event.transitionType) {
+    case TRANSITION_ENTER:
+      await handleEnter(reminder);
+      break;
+    case TRANSITION_EXIT:
+      await handleExit(reminder);
+      break;
+    case TRANSITION_DWELL:
+      await handleDwell(reminder);
+      break;
+    default:
+      log.warn('geofence', 'Unhandled transition type', { transitionType: event.transitionType });
   }
 }
 
-/**
- * Start stationary qualification for an arrival candidate.
- * Also starts GPS location watching to feed samples into processLocationSample().
- */
-function startArrivalCandidate(reminderId: string, lat: number, lon: number, radiusMeters: number): void {
-  stationaryService.startArrivalCandidate(reminderId, lat, lon, radiusMeters);
+async function handleEnter(reminder: Reminder): Promise<void> {
+  await applyTransition(reminder, GeofenceEventType.ENTER, 'native ENTER');
+}
 
-  // Start emitting stationary updates to UI.
+async function handleExit(reminder: Reminder): Promise<void> {
+  await applyTransition(reminder, GeofenceEventType.EXIT, 'native EXIT');
+}
+
+/**
+ * DWELL means the user stayed inside the region for the loitering delay (120 s). That is the
+ * stationary requirement, already satisfied by the OS — trigger without waiting for JS samples.
+ */
+async function handleDwell(reminder: Reminder): Promise<void> {
+  if (reminder.status !== ReminderStatus.ARRIVAL_PENDING && reminder.status !== ReminderStatus.ARMED) {
+    log.info('geofence', 'DWELL ignored for current status', {
+      reminderId: reminder.id,
+      status: reminder.status,
+    });
+    return;
+  }
+
+  log.info('geofence', 'DWELL confirms arrival', {
+    reminderId: reminder.id,
+    status: reminder.status,
+  });
+
+  await triggerArrival(reminder.id, 'native DWELL', { notify: false });
+}
+
+/** Apply an ENTER/EXIT transition through the state machine. */
+async function applyTransition(
+  reminder: Reminder,
+  eventType: GeofenceEventType,
+  source: string,
+): Promise<void> {
+  const result = processGeofenceEvent(reminder.status, eventType);
+
+  if (!result.transitioned) {
+    log.info('geofence', `No transition for ${source}`, {
+      reminderId: reminder.id,
+      status: reminder.status,
+    });
+
+    // Keep the arrival candidate alive if we are (still) inside the fence.
+    if (
+      eventType === GeofenceEventType.ENTER &&
+      reminder.status === ReminderStatus.ARRIVAL_PENDING
+    ) {
+      startArrivalCandidate(reminder);
+    }
+    return;
+  }
+
+  const updated: Reminder = {
+    ...reminder,
+    status: result.newStatus,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await store.save(updated);
+
+  log.info('geofence', `Status ${result.previousStatus} → ${result.newStatus}`, {
+    reminderId: reminder.id,
+    source,
+  });
+
+  onStatusChange?.(reminder.id, result.newStatus);
+
+  if (result.newStatus === ReminderStatus.ARRIVAL_PENDING) {
+    startArrivalCandidate({ ...updated, status: result.newStatus });
+  }
+
+  if (result.newStatus === ReminderStatus.ARMED) {
+    cancelArrivalCandidate(reminder.id);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stationary sampling (foreground supplement)
+// ---------------------------------------------------------------------------
+
+function startArrivalCandidate(reminder: Reminder): void {
+  stationaryService.startArrivalCandidate(
+    reminder.id,
+    reminder.latitude,
+    reminder.longitude,
+    reminder.radiusMeters,
+  );
+  startSampling(reminder.id);
+}
+
+/** Start the timer + location watch that feeds stationary qualification. */
+function startSampling(reminderId: string): void {
+  if (updateIntervals.has(reminderId) || gpsWatchIds.has(reminderId)) {
+    return;
+  }
+
   const intervalId = setInterval(() => {
     const remainingMs = stationaryService.getRemainingStationaryTimeMs(reminderId);
-    if (remainingMs !== null && onStationaryUpdate) {
-      onStationaryUpdate(reminderId, remainingMs);
+    if (remainingMs !== null) {
+      onStationaryUpdate?.(reminderId, remainingMs);
     }
-  }, 1000); // Update every second for UI feedback.
-
+  }, 1000);
   updateIntervals.set(reminderId, intervalId);
 
-  // Start GPS location watching to feed samples into processLocationSample().
-  // This is required for stationary detection — without location samples,
-  // triggerArrival() can never fire.
   try {
     const watchId = Geolocation.watchPosition(
-      (pos) => {
+      position => {
         processLocationSample(reminderId, {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          horizontalAccuracy: pos.coords.accuracy,
-          timestamp: new Date(pos.timestamp).toISOString(),
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          horizontalAccuracy: position.coords.accuracy,
+          timestamp: new Date(position.timestamp).toISOString(),
         });
       },
-      (err) => console.warn(`[GeofencingService] watchPosition error for ${reminderId}:`, err),
-      { enableHighAccuracy: true, distanceFilter: 5, interval: 3000, fastestInterval: 2000 },
+      error => {
+        log.warn('stationary', 'watchPosition error', { reminderId, error: String(error) });
+      },
+      // distanceFilter 0 => time-based fixes even while standing still. A distance filter
+      // suppresses updates when the user does not move, which stalls stationary accumulation.
+      { enableHighAccuracy: true, distanceFilter: 0, interval: 3000, fastestInterval: 2000 },
     );
     gpsWatchIds.set(reminderId, watchId as number);
-  } catch (err) {
-    console.error(`[GeofencingService] Failed to start watchPosition for ${reminderId}:`, err);
+    log.info('stationary', 'Sampling started', { reminderId });
+  } catch (error) {
+    log.error('stationary', 'Failed to start watchPosition', { reminderId, error: String(error) });
   }
 }
 
-/**
- * Cancel stationary qualification for a reminder.
- */
-function cancelArrivalCandidate(reminderId: string): void {
-  stationaryService.cancelArrivalCandidate(reminderId);
-
-  // Clean up the polling interval.
+function stopSampling(reminderId: string): void {
   const intervalId = updateIntervals.get(reminderId);
   if (intervalId) {
     clearInterval(intervalId);
     updateIntervals.delete(reminderId);
   }
 
-  // Stop GPS location watching.
   const watchId = gpsWatchIds.get(reminderId);
   if (watchId !== undefined) {
     Geolocation.clearWatch(watchId as number);
@@ -408,175 +613,254 @@ function cancelArrivalCandidate(reminderId: string): void {
   }
 }
 
-/**
- * Maximum gap (ms) between stationary readings for crash-safety recovery.
- * Readings older than this are considered stale and not used for resumption.
- */
-const MAX_STATIONARY_RECOVERY_GAP_MS = 15_000; // 15 seconds
+function cancelArrivalCandidate(reminderId: string): void {
+  stationaryService.cancelArrivalCandidate(reminderId);
+  stopSampling(reminderId);
+  log.info('stationary', 'Candidate cancelled', { reminderId });
+}
 
-/**
- * Crash-safety: resume the stationary timer from the last persisted valid reading.
- *
- * When the app restarts and a reminder is in ARRIVAL_PENDING state, we check
- * if there's a last stationary reading stored with the reminder. If it's within
- * the max sample gap, we resume the stationary timer from that point (adding
- * the elapsed time to the current accumulated time). If it's outside the gap,
- * we start fresh (no elapsed time counted).
- */
-async function resumeStationaryTimer(reminder: Reminder): Promise<void> {
-  const { lastStationaryReadingAt, lastStationaryReadingLat, lastStationaryReadingLon } = reminder;
-
-  if (!lastStationaryReadingAt || lastStationaryReadingLat == null || lastStationaryReadingLon == null) {
-    return; // No persisted reading — start fresh.
+/** Drop watches when the app goes to the background; native DWELL covers that case. */
+function pauseArrivalSampling(): void {
+  for (const reminderId of Array.from(gpsWatchIds.keys())) {
+    stopSampling(reminderId);
   }
-
-  const lastReadingTime = new Date(lastStationaryReadingAt).getTime();
-  const now = Date.now();
-  const elapsedSinceLastReading = now - lastReadingTime;
-
-  // If the last reading is outside the max gap, start fresh (don't count unknown elapsed time).
-  if (elapsedSinceLastReading > MAX_STATIONARY_RECOVERY_GAP_MS) {
-    console.log(`[GeofencingService] Stationary reading too old (${elapsedSinceLastReading}ms) — starting fresh for ${reminder.id}`);
-    return;
+  for (const reminderId of Array.from(updateIntervals.keys())) {
+    stopSampling(reminderId);
   }
+}
 
-  // Get the current accumulated stationary time (from any existing candidate).
-  const candidates = stationaryService.listCandidates();
-  const existingCandidate = candidates.find(c => c.reminderId === reminder.id);
-  const accumulatedTimeMs = existingCandidate ? existingCandidate.accumulatedStationaryTimeMs : 0;
-
-  // Add the elapsed time since the last reading (only if within the max gap).
-  const newAccumulatedTimeMs = accumulatedTimeMs + elapsedSinceLastReading;
-
-  console.log(`[GeofencingService] Resumed stationary timer for ${reminder.id}: ${elapsedSinceLastReading}ms elapsed since last reading, total: ${newAccumulatedTimeMs}ms`);
-
-  // Cancel any existing candidate and create a new one with resumed accumulated time.
-  stationaryService.cancelArrivalCandidate(reminder.id);
-  stationaryService.startArrivalCandidate(
-    reminder.id,
-    lastStationaryReadingLat,
-    lastStationaryReadingLon,
-    reminder.radiusMeters,
-  );
-
-  // The stationary service doesn't have a direct way to set accumulated time,
-  // so we rely on the next location sample to pick up from this point.
-  // The elapsed time is logged for diagnostics.
+/** Re-attach sampling to candidates that survived a background period or a restart. */
+async function resumeArrivalSampling(): Promise<void> {
+  const pending = await store.findByStatus(ReminderStatus.ARRIVAL_PENDING);
+  for (const reminder of pending) {
+    startSampling(reminder.id);
+  }
 }
 
 /**
- * Process a location sample for stationary qualification.
- * Also persists the last stationary reading for crash-safety recovery.
- * Returns true if the user has been stationary long enough to trigger arrival.
+ * Recover an ARRIVAL_PENDING reminder across an app restart.
+ *
+ * The accumulated time only transfers when the persisted reading is recent; an eight-hour-old
+ * reading proves nothing about the user's presence now.
+ */
+async function resumeStationaryTimer(reminder: Reminder): Promise<void> {
+  const lastReadingAt = reminder.lastStationaryReadingAt
+    ? new Date(reminder.lastStationaryReadingAt).getTime()
+    : null;
+  const elapsed = lastReadingAt === null ? 0 : Date.now() - lastReadingAt;
+
+  const transferable = lastReadingAt !== null && elapsed > 0 && elapsed <= MAX_STATIONARY_RECOVERY_GAP_MS;
+
+  stationaryService.resumeArrivalCandidate(
+    reminder.id,
+    reminder.latitude,
+    reminder.longitude,
+    reminder.radiusMeters,
+    transferable ? elapsed : 0,
+    transferable ? new Date(lastReadingAt as number) : null,
+  );
+
+  log.info('stationary', 'Resumed candidate', {
+    reminderId: reminder.id,
+    transferable,
+    transferredMs: transferable ? elapsed : 0,
+  });
+
+  startSampling(reminder.id);
+}
+
+/**
+ * Feed a location sample into stationary qualification.
+ * Returns true when the stationary requirement is met.
  */
 export function processLocationSample(reminderId: string, sample: LocationSample): boolean {
   const triggered = stationaryService.processLocationSample(reminderId, sample);
 
-  // Persist the last valid location reading for crash-safety recovery.
-  // (We persist all samples since we can't determine validity here — the
-  // stationary service handles sample validation.)
-  try {
-    store.updateStationaryReading(reminderId, {
+  // Best-effort crash-safety persistence (schema v2 columns).
+  void store
+    .updateStationaryReading(reminderId, {
       readingAt: sample.timestamp,
       latitude: sample.latitude,
       longitude: sample.longitude,
+    })
+    .catch(error => {
+      log.warn('stationary', 'Failed to persist stationary reading', {
+        reminderId,
+        error: String(error),
+      });
     });
-  } catch {
-    // Silently fail — stationary reading persistence is best-effort.
-  }
 
   if (triggered) {
-    // Stationary qualification met — transition to TRIGGERED.
-    triggerArrival(reminderId);
+    void triggerArrival(reminderId, 'stationary qualification');
   }
 
   return triggered;
 }
 
-/**
- * Trigger an arrival notification (stationary qualification met).
- * This is where the actual notification fires — NOT during save/arming.
- */
-async function triggerArrival(reminderId: string): Promise<void> {
+/** Transition to TRIGGERED and show the notification. Idempotent. */
+async function triggerArrival(
+  reminderId: string,
+  reason: string,
+  options: { notify?: boolean } = {},
+): Promise<void> {
   const reminder = await store.findById(reminderId);
   if (!reminder) return;
 
-  // Stop GPS watching before transitioning.
-  const watchId = gpsWatchIds.get(reminderId);
-  if (watchId !== undefined) {
-    Geolocation.clearWatch(watchId as number);
-    gpsWatchIds.delete(reminderId);
+  if (reminder.status === ReminderStatus.TRIGGERED) {
+    log.debug('arrival', 'Already triggered — ignoring', { reminderId, reason });
+    return;
   }
 
-  try {
-    const updatedReminder: Reminder = {
-      ...reminder,
-      status: ReminderStatus.TRIGGERED,
-      updatedAt: new Date().toISOString(),
-      triggeredAt: new Date().toISOString(),
-    };
-    await store.save(updatedReminder);
+  if (
+    reminder.status !== ReminderStatus.ARRIVAL_PENDING &&
+    reminder.status !== ReminderStatus.ARMED
+  ) {
+    log.info('arrival', 'Trigger refused for status', { reminderId, status: reminder.status, reason });
+    return;
+  }
 
-    // Display the notification NOW — when stationary qualification is met.
-    // (Notifications were NOT scheduled during save/arming.)
+  log.info('arrival', 'Arrival triggered', { reminderId, reason, fromStatus: reminder.status });
+
+  const updated: Reminder = {
+    ...reminder,
+    status: ReminderStatus.TRIGGERED,
+    updatedAt: new Date().toISOString(),
+    triggeredAt: new Date().toISOString(),
+  };
+
+  await store.save(updated);
+
+  // A native DWELL already posted the notification from the receiver (the app may have been
+  // dead at that moment). Re-notifying here would show the alert twice.
+  const shouldNotify = options.notify !== false;
+  if (shouldNotify) {
     try {
-      await scheduleReminderNotification(updatedReminder);
-    } catch (notifyErr) {
-      console.warn(`[GeofencingService] Failed to display notification for ${reminderId}:`, notifyErr);
+      await scheduleReminderNotification(updated);
+      log.info('arrival', 'Arrival notification displayed', { reminderId });
+    } catch (error) {
+      log.error('arrival', 'Failed to display arrival notification', {
+        reminderId,
+        error: String(error),
+      });
     }
-
-    if (onStatusChange) {
-      onStatusChange(reminderId, ReminderStatus.TRIGGERED);
-    }
-
-    if (onArrivalTriggered) {
-      onArrivalTriggered(reminderId);
-    }
-
-    // Cancel the arrival candidate.
-    stationaryService.cancelArrivalCandidate(reminderId);
-  } catch (error) {
-    console.error(`[GeofencingService] Failed to trigger arrival for ${reminderId}:`, error);
+  } else {
+    log.info('arrival', 'Notification skipped — native layer already posted it', { reminderId });
   }
+
+  onStatusChange?.(reminderId, ReminderStatus.TRIGGERED);
+  onArrivalTriggered?.(reminderId);
+
+  cancelArrivalCandidate(reminderId);
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliation with the current position
+// ---------------------------------------------------------------------------
+
+function getCurrentPositionOnce(): Promise<{ latitude: number; longitude: number } | null> {
+  return new Promise(resolve => {
+    Geolocation.getCurrentPosition(
+      position =>
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }),
+      error => {
+        log.warn('reconcile', 'Could not read current position', { error: String(error) });
+        resolve(null);
+      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: RECONCILE_MAX_AGE_MS },
+    );
+  });
 }
 
 /**
- * Get all active arrival candidates (for diagnostics).
+ * Re-derive status from the current position.
+ *
+ * Native transitions can be missed entirely (permission revoked, region dropped by the OS,
+ * events from a build that did not persist them). Reconciliation is the safety net: it runs on
+ * start and on every resume, and fixes statuses that no longer match reality.
  */
+export function reconcileActiveReminders(reason: string): Promise<void> {
+  if (reconcileInFlight) return reconcileInFlight;
+
+  reconcileInFlight = (async () => {
+    try {
+      const position = await getCurrentPositionOnce();
+      if (!position) return;
+
+      const activeReminders = await store.findActive();
+      const relevant = activeReminders.filter(
+        reminder =>
+          reminder.status === ReminderStatus.ARMED ||
+          reminder.status === ReminderStatus.ARRIVAL_PENDING ||
+          reminder.status === ReminderStatus.WAITING_FOR_EXIT,
+      );
+
+      log.info('reconcile', 'Reconciling active reminders', {
+        reason,
+        count: relevant.length,
+        position,
+      });
+
+      for (const reminder of relevant) {
+        const distance = haversineDistance(
+          position.latitude,
+          position.longitude,
+          reminder.latitude,
+          reminder.longitude,
+        );
+        const inside = distance <= reminder.radiusMeters;
+
+        log.info('reconcile', inside ? 'Inside geofence' : 'Outside geofence', {
+          reminderId: reminder.id,
+          status: reminder.status,
+          distanceMeters: Math.round(distance),
+          radiusMeters: reminder.radiusMeters,
+        });
+
+        await applyTransition(
+          reminder,
+          inside ? GeofenceEventType.ENTER : GeofenceEventType.EXIT,
+          `reconcile:${reason}`,
+        );
+      }
+    } catch (error) {
+      log.error('reconcile', 'Reconciliation failed', { reason, error: String(error) });
+    } finally {
+      reconcileInFlight = null;
+    }
+  })();
+
+  return reconcileInFlight;
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics + teardown
+// ---------------------------------------------------------------------------
+
 export function getActiveCandidates(): StationaryCandidate[] {
   return stationaryService.listCandidates();
 }
 
-/**
- * Clear all geofencing state (called on app exit or logout).
- */
 export async function clearAllGeofences(): Promise<void> {
-  for (const reminder of registeredGeofences.keys()) {
-    await unregisterReminderGeofence(reminder);
+  for (const reminderId of Array.from(registeredGeofences.keys())) {
+    await unregisterReminderGeofence(reminderId);
   }
+
   stationaryService.clearAll();
+  pauseArrivalSampling();
+  stopForegroundDrainTimer();
 
-  // Clean up all polling intervals.
-  for (const intervalId of updateIntervals.values()) {
-    clearInterval(intervalId);
-  }
-  updateIntervals.clear();
+  appStateSubscription?.remove();
+  appStateSubscription = null;
 
-  // Stop all GPS location watching.
-  for (const watchId of gpsWatchIds.values()) {
-    Geolocation.clearWatch(watchId as number);
-  }
-  gpsWatchIds.clear();
+  initialized = false;
+  onStatusChange = null;
+  onArrivalTriggered = null;
+  onStationaryUpdate = null;
 
-  if (onStatusChange) {
-    onStatusChange = null;
-  }
-  if (onArrivalTriggered) {
-    onArrivalTriggered = null;
-  }
-  if (onStationaryUpdate) {
-    onStationaryUpdate = null;
-  }
+  log.info('geofence', 'All geofences cleared');
 }
 
 export { stationaryService, registeredGeofences };

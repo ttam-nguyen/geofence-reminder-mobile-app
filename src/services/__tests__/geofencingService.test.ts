@@ -7,10 +7,31 @@
 
 // Mock NativeModules before importing the service.
 jest.mock('react-native', () => ({
-  NativeModules: { GeofencingModule: {} },
+  NativeModules: {
+    GeofencingModule: {
+      drainPendingGeofenceEvents: jest.fn(async () => []),
+      registerGeofence: jest.fn(async () => null),
+      unregisterGeofence: jest.fn(async () => null),
+      listRegisteredGeofences: jest.fn(async () => []),
+      getAuthorizationStatus: jest.fn(async () => 'granted'),
+      requestLocationPermission: jest.fn(async () => null),
+    },
+  },
   NativeEventEmitter: class {
     addListener() { return { remove: jest.fn(), removeListeners: jest.fn() }; }
     removeAllListeners() {}
+  },
+  AppState: {
+    currentState: 'active',
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
+  Platform: { OS: 'ios', Version: 17 },
+  Linking: { openSettings: jest.fn(async () => undefined) },
+  PermissionsAndroid: {
+    PERMISSIONS: { ACCESS_BACKGROUND_LOCATION: 'android.permission.ACCESS_BACKGROUND_LOCATION' },
+    RESULTS: { GRANTED: 'granted', DENIED: 'denied' },
+    check: jest.fn(async () => true),
+    request: jest.fn(async () => 'granted'),
   },
 }));
 
@@ -48,13 +69,12 @@ jest.mock('../notificationService', () => ({
   },
 }));
 
-describe('GeofencingService (TypeScript layer exports)', () => {
-  let mod: any;
+// Loaded at module scope: the op-sqlite mock registers hooks at import time, and Jest refuses
+// hooks registered after the first test has started.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const mod: any = require('../geofencingService');
 
-  beforeAll(() => {
-    // Load the module once after all mocks are set up.
-    mod = require('../geofencingService');
-  });
+describe('GeofencingService (TypeScript layer exports)', () => {
 
   it('exports initGeofencingService', () => {
     expect(typeof mod.initGeofencingService).toBe('function');

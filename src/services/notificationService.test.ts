@@ -30,6 +30,9 @@ jest.mock('@notifee/react-native', () => ({
     TIMESTAMP: 0,
     INTERVAL: 1,
   },
+  AndroidStyle: {
+    BIGTEXT: 1,
+  },
   AuthorizationStatus: {
     NOT_DETERMINED: -1,
     DENIED: 0,

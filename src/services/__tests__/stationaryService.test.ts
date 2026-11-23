@@ -25,19 +25,19 @@ describe('StationaryService', () => {
       expect(candidates[0].accumulatedStationaryTimeMs).toBe(0);
     });
 
-    it('replaces existing candidate (reset on re-ENTER)', () => {
+    it('preserves accumulated time when the user re-enters while already inside', () => {
       service.startArrivalCandidate('reminder-1', 37.7749, -122.4194, 200);
-      // Simulate accumulating some stationary time.
       const candidate = service['candidates'].get('reminder-1');
       if (candidate) {
-        candidate.accumulatedStationaryTimeMs = 60_000; // 60 seconds
+        candidate.accumulatedStationaryTimeMs = 60_000;
       }
 
-      // Re-ENTER should reset.
+      // A duplicate ENTER (re-registration, INITIAL_TRIGGER_ENTER, reconciliation) must not
+      // restart the two-minute clock — that bug kept arrivals permanently pending.
       service.startArrivalCandidate('reminder-1', 37.7749, -122.4194, 200);
       const candidates = service.listCandidates();
       expect(candidates).toHaveLength(1);
-      expect(candidates[0].accumulatedStationaryTimeMs).toBe(0);
+      expect(candidates[0].accumulatedStationaryTimeMs).toBe(60_000);
     });
   });
 
@@ -113,28 +113,50 @@ describe('StationaryService', () => {
       expect(updated?.accumulatedStationaryTimeMs).toBe(0);
     });
 
-    it('accumulates stationary time when speed is below threshold', () => {
+    it('accumulates stationary time from fix timestamps', () => {
       service.startArrivalCandidate('reminder-1', 37.7749, -122.4194, 200);
 
-      // First sample — just records it.
-      const sample1 = makeSample();
-      expect(service.processLocationSample('reminder-1', sample1)).toBe(false);
+      const start = Date.now() - 200_000;
+      const results: boolean[] = [];
 
-      // Second sample — very close to first (speed < 0.89408 m/s).
-      const sample2 = makeSample({
-        latitude: 37.77491, // ~1m from first (very slow movement)
-        longitude: -122.4194,
-      });
-
-      // Manually set the candidate's lastValidSampleAt to 130 seconds ago
-      // so the accumulated time exceeds 120s threshold.
-      const candidate = service['candidates'].get('reminder-1');
-      if (candidate) {
-        candidate.lastValidSampleAt = new Date(Date.now() - 130_000);
+      // Fixes 10 s apart, ~stationary the whole time: 12 gaps × 10 s = 120 s.
+      for (let index = 0; index <= 12; index += 1) {
+        results.push(
+          service.processLocationSample('reminder-1', {
+            latitude: 37.7749,
+            longitude: -122.4194,
+            timestamp: new Date(start + index * 10_000).toISOString(),
+            horizontalAccuracy: 5,
+          }),
+        );
       }
 
-      const triggered = service.processLocationSample('reminder-1', sample2);
-      expect(triggered).toBe(true);
+      expect(results.slice(0, 12).every(triggered => triggered === false)).toBe(true);
+      expect(results[12]).toBe(true);
+    });
+
+    it('does not count wall-clock time between batched fixes', () => {
+      service.startArrivalCandidate('reminder-1', 37.7749, -122.4194, 200);
+
+      const base = Date.now() - 20_000;
+      service.processLocationSample('reminder-1', {
+        latitude: 37.7749,
+        longitude: -122.4194,
+        timestamp: new Date(base).toISOString(),
+        horizontalAccuracy: 5,
+      });
+
+      // Two fixes three seconds apart, delivered to JS in the same tick. Wall-clock time
+      // between calls is ~0 ms, so the old code accumulated nothing; timestamps must win.
+      service.processLocationSample('reminder-1', {
+        latitude: 37.7749,
+        longitude: -122.4194,
+        timestamp: new Date(base + 3_000).toISOString(),
+        horizontalAccuracy: 5,
+      });
+
+      const candidate = service['candidates'].get('reminder-1');
+      expect(candidate?.accumulatedStationaryTimeMs).toBe(3_000);
     });
 
     it('does NOT trigger when accumulated time is below threshold', () => {
@@ -231,23 +253,28 @@ describe('StationaryService', () => {
 
     it('uses custom required stationary duration', () => {
       const customService = new StationaryService({
-        requiredStationaryDurationSeconds: 30, // shorter than default (120s)
+        requiredStationaryDurationSeconds: 30,
       });
 
       customService.startArrivalCandidate('reminder-1', 37.7749, -122.4194, 200);
 
-      const sample1 = makeSample();
-      expect(customService.processLocationSample('reminder-1', sample1)).toBe(false);
+      const start = Date.now() - 60_000;
+      const results: boolean[] = [];
 
-      // Second sample — close (slow speed), set accumulated to 30 seconds.
-      const sample2 = makeSample({ latitude: 37.77491, longitude: -122.4194 });
-      const candidate = customService['candidates'].get('reminder-1');
-      if (candidate) {
-        candidate.lastValidSampleAt = new Date(Date.now() - 30_000);
-        candidate.accumulatedStationaryTimeMs = 30_000; // 30 seconds, meets custom threshold
+      // Fixes 10 s apart: the 30 s custom duration is met on the fourth fix.
+      for (let index = 0; index <= 3; index += 1) {
+        results.push(
+          customService.processLocationSample('reminder-1', {
+            latitude: 37.7749,
+            longitude: -122.4194,
+            timestamp: new Date(start + index * 10_000).toISOString(),
+            horizontalAccuracy: 5,
+          }),
+        );
       }
 
-      expect(customService.processLocationSample('reminder-1', sample2)).toBe(true);
+      expect(results.slice(0, 3).every(triggered => triggered === false)).toBe(true);
+      expect(results[3]).toBe(true);
     });
   });
 });

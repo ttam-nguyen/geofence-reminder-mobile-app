@@ -1,13 +1,19 @@
-// useFirstLaunchPermissions — one-time bootstrap of notification + location
-// permissions on first launch, using the OS prompt instead of system settings.
+// useFirstLaunchPermissions — one-time bootstrap of notification + location permissions
+// on first launch, using the OS prompt instead of system settings.
 
 import { useEffect } from 'react';
 import { Platform, PermissionsAndroid } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { notificationService } from '../services/notificationService';
-import { requestLocationPermission } from '../services/geofencingService';
+import {
+  requestBackgroundLocationPermission,
+  requestLocationPermission,
+} from '../services/geofencingService';
+import { log } from '../services/logger';
 
-const KEY = 'geofence.firstLaunchPermissionsShown';
+// Versioned key: v1 asked only for foreground location. Bumping the key re-runs onboarding once
+// so existing installs are asked for background location, which geofencing needs on Android 10+.
+const KEY = 'geofence.onboarding.v2';
 
 export function useFirstLaunchPermissions() {
   useEffect(() => {
@@ -26,7 +32,7 @@ export function useFirstLaunchPermissions() {
           await notificationService.requestPermission();
         }
 
-        // Location permission.
+        // Foreground location permission.
         if (Platform.OS === 'android') {
           await PermissionsAndroid.request(
             PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
@@ -41,6 +47,14 @@ export function useFirstLaunchPermissions() {
           );
         } else {
           await requestLocationPermission();
+        }
+
+        // Background location: without it Android only reports geofence transitions while the
+        // app is open. Android 11+ routes the user to the settings screen for "Allow all the
+        // time", so the flag is only set once the OS has actually been asked.
+        if (Platform.OS === 'android') {
+          const background = await requestBackgroundLocationPermission();
+          log.info('permission', 'Background location bootstrap', { result: background });
         }
 
         await AsyncStorage.setItem(KEY, 'true');
