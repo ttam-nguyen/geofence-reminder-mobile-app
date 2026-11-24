@@ -74,13 +74,20 @@ class GeofencingModule(reactContext: ReactApplicationContext?) :
         radius: Float,
         title: String?,
         body: String?,
+        notifyOnDwell: Boolean?,
         promise: Promise,
     ) {
         val appContext = context ?: run { promise.reject("NO_CONTEXT", "No application context"); return }
 
         try {
             if (title != null && body != null) {
-                GeofenceEventStore.saveReminderMeta(appContext, reminderId, title, body)
+                GeofenceEventStore.saveReminderMeta(
+                    context = appContext,
+                    reminderId = reminderId,
+                    title = title,
+                    body = body,
+                    notifyOnDwell = notifyOnDwell != false,
+                )
             }
 
             val existing = registeredGeofences[reminderId]

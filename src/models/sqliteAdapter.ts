@@ -8,9 +8,12 @@ import { getDatabase, closeDatabase } from './database';
 /**
  * Schema versions:
  * 1 — initial reminders table.
- * 2 — added the stationary crash-safety columns. Without these the persisted reading never
- *     saved (the UPDATE targeted columns that did not exist), so a resumed ARRIVAL_PENDING
- *     reminder could never recover its progress.
+ * 2 — stationary crash-safety columns.
+ *
+ * Column-level reconciliation below is what actually matters: `notificationId` was added to the
+ * canonical schema after the first release, but the old `if (version >= 1) return` guard meant
+ * existing installs never received it, so every save failed with "no column named notificationId".
+ * Any column missing from a live database is now added on first use.
  */
 const SCHEMA_VERSION = 2;
 
@@ -38,32 +41,86 @@ const CREATE_REMINDERS_TABLE_SQL = `
   )
 `;
 
-/** Columns added after v1; ALTER TABLE keeps existing user data intact. */
-const MIGRATION_COLUMNS: { name: string; definition: string }[] = [
+/** Every column the current queries write. Missing ones are added by ALTER TABLE. */
+const REQUIRED_COLUMNS: { name: string; definition: string }[] = [
+  { name: 'title', definition: "TEXT NOT NULL DEFAULT ''" },
+  { name: 'description', definition: 'TEXT' },
+  { name: 'latitude', definition: 'REAL NOT NULL DEFAULT 0' },
+  { name: 'longitude', definition: 'REAL NOT NULL DEFAULT 0' },
+  { name: 'locationName', definition: 'TEXT' },
+  { name: 'radiusMeters', definition: 'INTEGER NOT NULL DEFAULT 200' },
+  { name: 'locationSource', definition: "TEXT NOT NULL DEFAULT 'current'" },
+  { name: 'status', definition: "TEXT NOT NULL DEFAULT 'DRAFT'" },
+  { name: 'createdAt', definition: "TEXT NOT NULL DEFAULT ''" },
+  { name: 'updatedAt', definition: "TEXT NOT NULL DEFAULT ''" },
+  { name: 'triggeredAt', definition: 'TEXT' },
+  { name: 'completedAt', definition: 'TEXT' },
+  { name: 'notificationId', definition: 'TEXT' },
+  { name: 'notificationSoundEnabled', definition: 'INTEGER NOT NULL DEFAULT 1' },
+  { name: 'notificationVibrationEnabled', definition: 'INTEGER NOT NULL DEFAULT 1' },
   { name: 'lastStationaryReadingAt', definition: 'TEXT' },
   { name: 'lastStationaryReadingLat', definition: 'REAL' },
   { name: 'lastStationaryReadingLon', definition: 'REAL' },
 ];
 
-/** Create the table and apply additive migrations. Cheap after the first call. */
-async function ensureSchema(): Promise<void> {
-  const db = getDatabase();
+/** Columns present in `existing` but missing from the canonical set, in declaration order. */
+export function computeMissingColumns(existing: string[]): { name: string; definition: string }[] {
+  const present = new Set(existing);
+  return REQUIRED_COLUMNS.filter(column => !present.has(column.name));
+}
 
-  const versionResult = await db.execute('PRAGMA user_version');
-  const version = Number(versionResult.rows?.[0]?.user_version ?? 0);
+let schemaReady: Promise<void> | null = null;
+
+/** Run the migration once per process, then reuse the resolved promise. */
+function ensureSchema(): Promise<void> {
+  if (!schemaReady) {
+    schemaReady = applyMigrations().catch(error => {
+      // Let the next call retry rather than caching the failure forever.
+      schemaReady = null;
+      throw error;
+    });
+  }
+  return schemaReady;
+}
+
+async function applyMigrations(): Promise<void> {
+  const db = getDatabase();
 
   await db.execute(CREATE_REMINDERS_TABLE_SQL);
 
-  if (version < SCHEMA_VERSION) {
-    const info = await db.execute('PRAGMA table_info(reminders)');
-    const existing = new Set((info.rows ?? []).map(row => row.name as string));
+  // Additive reconciliation: safe for partial or hand-edited databases, and a no-op once
+  // everything is present.
+  const info = await db.execute('PRAGMA table_info(reminders)');
+  const existing = new Set((info.rows ?? []).map(row => String(row.name)));
 
-    for (const column of MIGRATION_COLUMNS) {
-      if (!existing.has(column.name)) {
+  if (existing.size === 0) {
+    // Some builds return no rows for PRAGMA table_info. Fall back to attempting every ADD and
+    // tolerating "duplicate column name", which is the only reliable signal left.
+    for (const column of REQUIRED_COLUMNS) {
+      try {
         await db.execute(`ALTER TABLE reminders ADD COLUMN ${column.name} ${column.definition}`);
+      } catch (error) {
+        const message = String(error);
+        if (!message.includes('duplicate column')) {
+          console.warn(`[SQLite] Could not add column ${column.name}:`, error);
+        }
       }
     }
+  } else {
+    const missing = computeMissingColumns(Array.from(existing));
+    for (const column of missing) {
+      await db.execute(`ALTER TABLE reminders ADD COLUMN ${column.name} ${column.definition}`);
+    }
+    if (missing.length > 0) {
+      console.warn(
+        `[SQLite] Migrated reminders table — added ${missing.map(column => column.name).join(', ')}`,
+      );
+    }
+  }
 
+  const versionResult = await db.execute('PRAGMA user_version');
+  const version = Number(versionResult.rows?.[0]?.user_version ?? 0);
+  if (version < SCHEMA_VERSION) {
     await db.execute(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
 }
@@ -234,5 +291,7 @@ export class SQLiteReminderRepository implements ReminderRepository {
   /** Close the shared database connection (useful for testing). */
   async close(): Promise<void> {
     closeDatabase();
+    // A new connection needs the migration check again.
+    schemaReady = null;
   }
 }

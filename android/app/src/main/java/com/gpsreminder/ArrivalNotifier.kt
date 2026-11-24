@@ -42,6 +42,16 @@ object ArrivalNotifier {
             return
         }
 
+        if (!meta.notifyOnDwell) {
+            // The reminder's status does not allow an arrival alert yet (for example
+            // WAITING_FOR_EXIT, where the user must leave the radius and return).
+            android.util.Log.i(
+                "Geofencing",
+                "Arrival suppressed for $reminderId — status does not permit notification",
+            )
+            return
+        }
+
         ensureChannel(context)
 
         if (!canPostNotifications(context)) {

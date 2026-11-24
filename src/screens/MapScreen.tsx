@@ -1,8 +1,17 @@
 // Map screen — full-bleed map with a floating, drag-resizable reminder sheet.
-// Rows dissolve as they reach the top or bottom edge of the list.
+// The card nearest the sheet's vertical centre is in focus; neighbours stay ghosted.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, LayoutChangeEvent, PanResponder, Platform, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  LayoutChangeEvent,
+  PanResponder,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from "react-native";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import Geolocation from "@react-native-community/geolocation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -52,10 +61,16 @@ const SHEET_MIN_RATIO = 0.22;
 const SHEET_MAX_RATIO = 0.82;
 const SHEET_SIDE_INSET_RATIO = 0.15; // 70% width = 7/10 of the screen
 
-/** Pixels over which a row fades out at the list edges. */
-const ROW_FADE = 20;
+/**
+ * Focus styling for the list.
+ *
+ * Rows are not faded to zero at the viewport edge: a fully transparent neighbour removes the cue
+ * that the list scrolls, and with a short sheet it can leave a blank viewport.
+ */
 const MIN_ROW_OPACITY = 0.28;
 const MIN_ROW_SCALE = 0.95;
+/** Rough card height used to size the top/bottom padding that lets edges centre. */
+const ROW_CENTER_REFERENCE_HEIGHT = 88;
 
 /**
  * Vertical gap between reminder cards in the sheet.
@@ -87,11 +102,11 @@ export function MapScreen() {
   const insets = useSafeAreaInsets();
 
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [rowLayouts, setRowLayouts] = useState<Record<string, RowLayout>>({});
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapAreaHeight, setMapAreaHeight] = useState(0);
   const [sheetHeightPx, setSheetHeightPx] = useState(0);
-  const [rowLayouts, setRowLayouts] = useState<Record<string, RowLayout>>({});
 
   const mapRef = useRef<MapView>(null);
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
@@ -322,28 +337,57 @@ export function MapScreen() {
     });
   }, []);
 
-  // Rows dissolve as they approach either edge of the list viewport.
-  const rowOpacity = (id: string): Animated.WithAnimatedValue<number> => {
+  // Rows are styled by distance from the snap position at the top of the sheet, never by distance
+  // to an edge, so no scroll position can render every visible row at zero opacity.
+  // Rows fade in and out by their distance from the viewport centre, so scrolling moves a card
+  // through focus instead of everything staying dim.
+  const rowAnimatedStyle = (id: string): Animated.WithAnimatedValue<ViewStyle> => {
     const layout = rowLayouts[id];
     if (!layout || listViewportHeight === 0) {
-      return 1;
+      return { opacity: 1, transform: [{ scale: 1 }] };
     }
 
-    const fadeInAtTop = scrollY.interpolate({
-      inputRange: [layout.y - ROW_FADE, layout.y],
-      outputRange: [1, 0],
+    // Scroll offset at which this row's centre lines up with the viewport centre.
+    const centerScrollY = layout.y + layout.height / 2 - listViewportHeight / 2;
+    // Distance over which a row goes from full focus to the ghosted peek state.
+    const focusBand = Math.max(layout.height * 0.85, listViewportHeight * 0.45);
+
+    const opacity = scrollY.interpolate({
+      inputRange: [centerScrollY - focusBand, centerScrollY, centerScrollY + focusBand],
+      outputRange: [MIN_ROW_OPACITY, 1, MIN_ROW_OPACITY],
       extrapolate: "clamp",
     });
 
-    const bottomEdge = layout.y + layout.height - listViewportHeight;
-    const fadeOutAtBottom = scrollY.interpolate({
-      inputRange: [bottomEdge, bottomEdge + ROW_FADE],
-      outputRange: [0, 1],
+    const scale = scrollY.interpolate({
+      inputRange: [centerScrollY - focusBand, centerScrollY, centerScrollY + focusBand],
+      outputRange: [MIN_ROW_SCALE, 1, MIN_ROW_SCALE],
       extrapolate: "clamp",
     });
 
-    return Animated.multiply(fadeInAtTop, fadeOutAtBottom);
+    return { opacity, transform: [{ scale }] };
   };
+
+  // Snap points derived from measured layouts so a gesture settles with one card centred at full
+  // opacity and its neighbours peeking in.
+  const snapOffsets = useMemo(() => {
+    if (listViewportHeight === 0) {
+      return undefined;
+    }
+
+    const offsets = visibleReminders
+      .map(item => rowLayouts[item.id])
+      .filter((layout): layout is RowLayout => Boolean(layout))
+      .map(layout => Math.max(0, layout.y + layout.height / 2 - listViewportHeight / 2));
+
+    // react-native requires ascending snap offsets.
+    return offsets.sort((a, b) => a - b);
+  }, [visibleReminders, rowLayouts, listViewportHeight]);
+
+  // Padding so the first and last cards can also reach the centre slot.
+  const listPaddingVertical = useMemo(
+    () => Math.max(Spacing.sm, (listViewportHeight - ROW_CENTER_REFERENCE_HEIGHT) / 2),
+    [listViewportHeight],
+  );
 
   const activeCount = visibleReminders.length;
 
@@ -368,7 +412,7 @@ export function MapScreen() {
       </MapView>
 
       <View style={[styles.header, { top: insets.top + Spacing.sm }]} accessibilityRole="header" pointerEvents="none">
-        <Text style={Typography.h3}>Map</Text>
+        {/* The screen title is in the navigator header; this chip only reports the count. */}
         <View style={styles.countPill}>
           <Text style={Typography.caption}>
             {activeCount} {activeCount === 1 ? "reminder" : "reminders"}
@@ -416,16 +460,22 @@ export function MapScreen() {
         ) : (
           <Animated.ScrollView
             style={styles.list}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingVertical: listPaddingVertical }]}
+            snapToOffsets={snapOffsets}
+            decelerationRate="fast"
+            // No rubber-band past the ends, so a gesture cannot park in empty space.
+            bounces={false}
+            alwaysBounceVertical={false}
+            overScrollMode="never"
             onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
             scrollEventThrottle={16}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={visibleReminders.length > 1}
           >
             {visibleReminders.map(item => (
               <Animated.View
                 key={item.id}
                 onLayout={event => handleRowLayout(item.id, event)}
-                style={[styles.row, { opacity: rowOpacity(item.id) }]}
+                style={[styles.row, rowAnimatedStyle(item.id)]}
               >
                 <ReminderCard reminder={item} onPress={handleCardPress} />
               </Animated.View>
@@ -449,7 +499,7 @@ const styles = StyleSheet.create({
     height: HEADER_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.pill,
     backgroundColor: Colors.surfaceGlass,
@@ -522,11 +572,12 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+    // Ghosted, scaled-down rows must clip at the sheet bounds instead of bleeding past the
+    // rounded corners. Kept on the list (not the sheet) so the sheet keeps its shadow.
+    overflow: "hidden",
   },
   listContent: {
     paddingHorizontal: Spacing.sm,
-    paddingTop: ROW_FADE,
-    paddingBottom: ROW_FADE,
   },
   row: {
     marginBottom: ROW_GAP,

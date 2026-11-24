@@ -4,6 +4,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
+# Optional: pass --diagnostics to build a debuggable release APK, which allows
+# `scripts/pull-diagnostics.sh` to read the app database with `adb run-as`.
+GRADLE_ARGS=()
+if [ "${1:-}" = "--diagnostics" ]; then
+  GRADLE_ARGS+=("-Pdiagnostics")
+  echo "=== Diagnostics build: release APK will be debuggable ==="
+fi
+
+# Fail loudly if the working tree is older than the code the user expects to test.
+echo "=== Source version ==="
+grep "APP_VERSION" src/config/version.ts
+git log -1 --format="HEAD %h %ad %s" --date=iso 2>/dev/null || true
+
 echo "=== Step 1: Bundle JS ==="
 npx react-native bundle \
   --platform android \
@@ -14,7 +27,7 @@ npx react-native bundle \
 
 echo "=== Step 2: Assemble release APK ==="
 cd android
-./gradlew app:assembleRelease
+./gradlew app:assembleRelease "${GRADLE_ARGS[@]}"
 
 # Find the actual APK (may vary by ABI config)
 APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
@@ -37,4 +50,9 @@ else
   adb install "$ROOT/android/$APK"
 fi
 
-echo "=== Done! Verify version in Settings > About ==="
+echo "=== Step 5: Verify the installed build ==="
+INSTALLED_VERSION=$(grep -oE "[0-9]+\.[0-9]+\.[0-9]+" src/config/version.ts | head -1)
+ADB_STAMP=$(adb shell dumpsys package com.gpsreminder 2>/dev/null | grep -E "lastUpdateTime" | head -1 | tr -d '\r')
+echo "Expected app version : v${INSTALLED_VERSION}"
+echo "Device package state : ${ADB_STAMP:-unknown}"
+echo "Check Settings > About shows v${INSTALLED_VERSION}."

@@ -15,6 +15,8 @@ import { notificationService, AuthorizationStatus } from "../services/notificati
 import { DeveloperGeofenceControls, isDeveloperMode } from "../components/DeveloperGeofenceControls";
 import { APP_VERSION } from "../config/version";
 import { clearLogs, exportLogs, log } from "../services/logger";
+import { requestBackgroundLocationPermission } from "../services/geofencingService";
+import { useFocusEffect } from "@react-navigation/native";
 
 type SwitchProps = {
   enabled: boolean;
@@ -93,9 +95,12 @@ export function SettingsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void refreshBackgroundLocation();
-  }, [refreshBackgroundLocation]);
+  // Re-check whenever the screen is shown: the user may just have changed it in system settings.
+  useFocusEffect(
+    useCallback(() => {
+      void refreshBackgroundLocation();
+    }, [refreshBackgroundLocation]),
+  );
 
   const handleExportLogs = useCallback(async () => {
     setDiagnosticsBusy(true);
@@ -224,7 +229,7 @@ export function SettingsScreen() {
   return (
     <SafeArea style={styles.container} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={Typography.h2}>Settings</Text>
+        {/* Title lives in the navigator header — no in-screen heading. */}
 
         {/* Notifications section */}
         <View style={styles.section}>
@@ -344,11 +349,18 @@ export function SettingsScreen() {
                 accessibilityLabel="Open system settings to allow background location"
                 accessibilityRole="button"
                 onPress={() => {
-                  void Linking.openSettings();
+                  void (async () => {
+                    const result = await requestBackgroundLocationPermission();
+                    log.info("permission", "Background location prompt from Settings", { result });
+                    // Give the settings screen a moment before re-reading the grant state.
+                    setTimeout(() => {
+                      void refreshBackgroundLocation();
+                    }, 800);
+                  })();
                 }}
                 style={[styles.permissionButton, styles.glassButton]}
               >
-                <Text style={styles.permissionButtonText}>Open Settings</Text>
+                <Text style={styles.permissionButtonText}>Allow</Text>
               </Pressable>
             </View>
           )}

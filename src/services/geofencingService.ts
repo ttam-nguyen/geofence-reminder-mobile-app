@@ -29,6 +29,7 @@ import {
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import notifee, { EventType } from '@notifee/react-native';
+import { notificationService } from './notificationService';
 import { ReminderStatus, Reminder } from '../types/Reminder';
 import { processGeofenceEvent, GeofenceEventType } from '../models/eventProcessor';
 import { store, scheduleReminderNotification } from '../stores/reminderStore';
@@ -45,8 +46,8 @@ export const TRANSITION_ENTER = 1;
 export const TRANSITION_EXIT = 2;
 export const TRANSITION_DWELL = 4;
 
-/** Safety-net drain while the app is in the foreground. */
-const FOREGROUND_DRAIN_INTERVAL_MS = 60_000;
+/** Safety-net drain and foreground reconciliation while the app is in the foreground. */
+const FOREGROUND_TICK_INTERVAL_MS = 60_000;
 
 /** A persisted stationary reading is only usable for recovery if it is this recent. */
 const MAX_STATIONARY_RECOVERY_GAP_MS = 5 * 60 * 1000;
@@ -146,6 +147,8 @@ export function initGeofencingService(): void {
 
   log.info('geofence', 'Geofencing service initialising');
 
+  void logPermissionSnapshot('startup');
+
   if (GeofencingModule && appActive) {
     startForegroundDrainTimer();
   }
@@ -166,13 +169,29 @@ function handleAppStateChange(nextState: AppStateStatus): void {
   lastAppState = nextState;
   appActive = nextState === 'active';
 
+  // Android reports an 'active' change at startup that is not a real transition. Ignoring it
+  // avoids registering every geofence twice per launch.
+  if (previous === nextState) {
+    return;
+  }
+
   log.info('app', `App state: ${previous} → ${nextState}`);
 
   if (nextState === 'active') {
     startForegroundDrainTimer();
-    void drainNativeGeofenceEvents();
-    void reconcileActiveReminders('resume');
-    void resumeArrivalSampling();
+    void logPermissionSnapshot('resume');
+    void (async () => {
+      // Re-register on every resume: some OEMs drop geofences on process death, and the reminder
+      // metadata (including the notify-on-arrival flag) must match the current status.
+      await registerAllActiveGeofences().catch(error =>
+        log.error('geofence', 'Failed to re-register geofences on resume', {
+          error: String(error),
+        }),
+      );
+      await drainNativeGeofenceEvents();
+      await reconcileActiveReminders('resume');
+      await resumeArrivalSampling();
+    })();
   } else {
     stopForegroundDrainTimer();
     // Foreground-only sampling: the native DWELL transition covers the background case and
@@ -184,10 +203,51 @@ function handleAppStateChange(nextState: AppStateStatus): void {
 function startForegroundDrainTimer(): void {
   if (foregroundDrainTimer !== null) return;
   foregroundDrainTimer = setInterval(() => {
-    void drainNativeGeofenceEvents();
-  }, FOREGROUND_DRAIN_INTERVAL_MS);
+    // Drain native transitions first, then re-derive status from the current fix, so a session
+    // that stays in the foreground still notices an arrival within a minute.
+    void (async () => {
+      await drainNativeGeofenceEvents();
+      await reconcileActiveReminders('foreground-tick');
+    })();
+  }, FOREGROUND_TICK_INTERVAL_MS);
   // Unref under Node (Jest) so the safety-net timer cannot hold the test process open.
   (foregroundDrainTimer as unknown as { unref?: () => void }).unref?.();
+}
+
+/**
+ * Log the permission state that decides whether the OS reports transitions while backgrounded.
+ * Without ACCESS_BACKGROUND_LOCATION on Android 10+, geofencing only reports while the app is in
+ * the foreground — which looks exactly like "it only works when I open the app".
+ */
+async function logPermissionSnapshot(reason: string): Promise<void> {
+  try {
+    let fine = 'unknown';
+    let background = 'unknown';
+
+    if (Platform.OS === 'android') {
+      fine = (await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION))
+        ? 'granted'
+        : 'denied';
+      background = (await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+      ))
+        ? 'granted'
+        : 'denied';
+    } else {
+      fine = await getAuthorizationStatus();
+    }
+
+    const notifications = await notificationService.checkPermission();
+
+    log.info('permission', 'Permission snapshot', {
+      reason,
+      foregroundLocation: fine,
+      backgroundLocation: background,
+      notifications,
+    });
+  } catch (error) {
+    log.warn('permission', 'Could not read permission state', { reason, error: String(error) });
+  }
 }
 
 function stopForegroundDrainTimer(): void {
@@ -237,7 +297,14 @@ export async function registerReminderGeofence(
   reminder: Reminder,
   userPosition?: { latitude: number; longitude: number },
 ): Promise<void> {
-  if (reminder.status !== ReminderStatus.ARMED && reminder.status !== ReminderStatus.WAITING_FOR_EXIT) {
+  // ARRIVAL_PENDING is included so its native metadata stays current after a restart; it is
+  // already inside the region, so re-registering is a no-op for Play Services.
+  const registrableStatuses: ReminderStatus[] = [
+    ReminderStatus.ARMED,
+    ReminderStatus.WAITING_FOR_EXIT,
+    ReminderStatus.ARRIVAL_PENDING,
+  ];
+  if (!registrableStatuses.includes(reminder.status)) {
     log.debug('geofence', 'Skip registration — reminder is not active', {
       reminderId: reminder.id,
       status: reminder.status,
@@ -262,6 +329,13 @@ export async function registerReminderGeofence(
 
   const copy = buildArrivalCopy(reminder);
 
+  // Only these statuses may alert on arrival. WAITING_FOR_EXIT means the user was already inside
+  // the radius when the reminder was created, so they must leave and come back first. The native
+  // side posts the DWELL notification itself, so it needs the same rule.
+  const notifyOnDwell =
+    reminder.status === ReminderStatus.ARMED ||
+    reminder.status === ReminderStatus.ARRIVAL_PENDING;
+
   try {
     await GeofencingModule.registerGeofence(
       reminder.id,
@@ -270,12 +344,14 @@ export async function registerReminderGeofence(
       reminder.radiusMeters,
       copy.title,
       copy.body,
+      notifyOnDwell,
     );
     registeredGeofences.set(reminder.id, reminder);
     log.info('geofence', 'Geofence registered', {
       reminderId: reminder.id,
       radius: reminder.radiusMeters,
       status: reminder.status,
+      notifyOnDwell,
     });
   } catch (error) {
     log.error('geofence', 'Failed to register geofence', {

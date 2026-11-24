@@ -123,7 +123,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
   return (
     <SafeArea style={styles.container} edges={["left", "right"]}>
       <View style={styles.header}>
-        <Text style={Typography.h1}>Reminders</Text>
+        {/* Title lives in the navigator header — no in-screen heading. */}
         <Pressable
           testID="home.createReminder.button"
           accessibilityLabel="Create new reminder"
@@ -192,7 +192,8 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    // Only the create button remains here; the screen title is in the navigator header.
+    justifyContent: "flex-end",
     alignItems: "center",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,

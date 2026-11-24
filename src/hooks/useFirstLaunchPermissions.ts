@@ -5,11 +5,7 @@ import { useEffect } from 'react';
 import { Platform, PermissionsAndroid } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { notificationService } from '../services/notificationService';
-import {
-  requestBackgroundLocationPermission,
-  requestLocationPermission,
-} from '../services/geofencingService';
-import { log } from '../services/logger';
+import { requestLocationPermission } from '../services/geofencingService';
 
 // Versioned key: v1 asked only for foreground location. Bumping the key re-runs onboarding once
 // so existing installs are asked for background location, which geofencing needs on Android 10+.
@@ -49,13 +45,9 @@ export function useFirstLaunchPermissions() {
           await requestLocationPermission();
         }
 
-        // Background location: without it Android only reports geofence transitions while the
-        // app is open. Android 11+ routes the user to the settings screen for "Allow all the
-        // time", so the flag is only set once the OS has actually been asked.
-        if (Platform.OS === 'android') {
-          const background = await requestBackgroundLocationPermission();
-          log.info('permission', 'Background location bootstrap', { result: background });
-        }
+        // Background location is handled by useBackgroundLocationGuard: it must be re-checked on
+        // every launch (the user can revoke it), and it needs a dialog rather than a silent
+        // request, because Android 11+ can only grant it from the settings screen.
 
         await AsyncStorage.setItem(KEY, 'true');
       } catch (err) {

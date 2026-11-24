@@ -56,8 +56,11 @@ object GeofenceEventStore {
         }
     }
 
-    /** Reminder copy needed to post a notification without JS (app may be closed). */
-    data class ReminderMeta(val title: String, val body: String)
+    /**
+     * Reminder copy needed to post a notification without JS (app may be closed), plus whether
+     * that reminder's current status may notify on arrival at all.
+     */
+    data class ReminderMeta(val title: String, val body: String, val notifyOnDwell: Boolean)
 
     private fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -129,12 +132,25 @@ object GeofenceEventStore {
 
     // ------------------------------------------------------- reminder metadata
 
-    /** Cache the copy needed to raise a notification while JS is not running. */
-    fun saveReminderMeta(context: Context, reminderId: String, title: String, body: String) {
+    /**
+     * Cache the copy needed to raise a notification while JS is not running.
+     *
+     * `notifyOnDwell` mirrors the reminder's status at registration time: only ARMED and
+     * ARRIVAL_PENDING reminders may alert on arrival. WAITING_FOR_EXIT means the user started
+     * inside the radius and must leave and return first, so a DWELL there must stay silent.
+     */
+    fun saveReminderMeta(
+        context: Context,
+        reminderId: String,
+        title: String,
+        body: String,
+        notifyOnDwell: Boolean,
+    ) {
         prefs(context).edit()
             .putString(KEY_REMINDER_PREFIX + reminderId, JSONObject().apply {
                 put("title", title)
                 put("body", body)
+                put("notifyOnDwell", notifyOnDwell)
             }.toString())
             .apply()
     }
@@ -146,6 +162,9 @@ object GeofenceEventStore {
             ReminderMeta(
                 title = json.optString("title", "GPS Reminder"),
                 body = json.optString("body", "You have arrived."),
+                // Entries written by older builds have no flag; fail closed so a
+                // WAITING_FOR_EXIT reminder cannot alert.
+                notifyOnDwell = json.optBoolean("notifyOnDwell", false),
             )
         } catch (error: Exception) {
             null
