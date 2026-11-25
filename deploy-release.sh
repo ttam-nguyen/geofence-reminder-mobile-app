@@ -6,9 +6,11 @@ cd "$ROOT"
 
 # Optional: pass --diagnostics to build a debuggable release APK, which allows
 # `scripts/pull-diagnostics.sh` to read the app database with `adb run-as`.
-GRADLE_ARGS=()
+# A plain string, not an array: macOS ships bash 3.2, where expanding an empty
+# array under `set -u` fails with "GRADLE_ARGS[@]: unbound variable".
+GRADLE_ARGS=""
 if [ "${1:-}" = "--diagnostics" ]; then
-  GRADLE_ARGS+=("-Pdiagnostics")
+  GRADLE_ARGS="-Pdiagnostics"
   echo "=== Diagnostics build: release APK will be debuggable ==="
 fi
 
@@ -27,7 +29,7 @@ npx react-native bundle \
 
 echo "=== Step 2: Assemble release APK ==="
 cd android
-./gradlew app:assembleRelease "${GRADLE_ARGS[@]}"
+./gradlew app:assembleRelease ${GRADLE_ARGS}
 
 # Find the actual APK (may vary by ABI config)
 APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)

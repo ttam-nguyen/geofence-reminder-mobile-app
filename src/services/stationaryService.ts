@@ -18,6 +18,32 @@
 import { LocationSample } from '../types/location';
 import { defaultArrivalConfig } from '../models/arrivalConfig';
 
+/** Why the last sample was accepted or rejected — surfaced in the diagnostics log. */
+export type SampleVerdict =
+  | 'no-candidate'
+  | 'stale'
+  | 'low-accuracy'
+  | 'baseline'
+  | 'duplicate-time'
+  | 'noise-window'
+  | 'gap-reset'
+  | 'moving'
+  | 'accumulating'
+  | 'triggered';
+
+export interface SampleEvaluation {
+  /** ISO timestamp of the sample. */
+  at: string;
+  verdict: SampleVerdict;
+  accuracy: number | null;
+  /** Metres per second between the two fixes, when it could be derived. */
+  speedMps: number | null;
+  /** Milliseconds between this fix and the previous baseline. */
+  gapMs: number | null;
+  accumulatedMs: number;
+  requiredMs: number;
+}
+
 export interface StationaryCandidate {
   reminderId: string;
   targetCoordinate: { latitude: number; longitude: number };
@@ -27,6 +53,8 @@ export interface StationaryCandidate {
   lastValidSampleLat: number | null;
   lastValidSampleLon: number | null;
   enteredAt: Date;
+  /** Evaluation of the most recent sample, for diagnostics. */
+  lastEvaluation: SampleEvaluation | null;
 }
 
 export interface StationaryServiceConfig {
@@ -92,6 +120,7 @@ class StationaryService {
       lastValidSampleLat: null,
       lastValidSampleLon: null,
       enteredAt: new Date(),
+      lastEvaluation: null,
     };
 
     this.candidates.set(reminderId, candidate);
@@ -131,23 +160,58 @@ class StationaryService {
    */
   processLocationSample(reminderId: string, sample: LocationSample): boolean {
     const candidate = this.candidates.get(reminderId);
-    if (!candidate) return false;
-    if (!this.isValidSample(sample)) return false;
+    const requiredMs = this.requiredStationaryDurationSeconds * 1000;
+
+    if (!candidate) {
+      return false;
+    }
+
+    const record = (
+      verdict: SampleVerdict,
+      extra: { speedMps?: number | null; gapMs?: number | null } = {},
+    ): void => {
+      candidate.lastEvaluation = {
+        at: sample.timestamp,
+        verdict,
+        accuracy: sample.horizontalAccuracy ?? null,
+        speedMps: extra.speedMps ?? null,
+        gapMs: extra.gapMs ?? null,
+        accumulatedMs: candidate.accumulatedStationaryTimeMs,
+        requiredMs,
+      };
+    };
 
     const sampleAt = new Date(sample.timestamp);
+    const ageMs = Date.now() - sampleAt.getTime();
+    if (!Number.isFinite(ageMs) || ageMs > this.validSampleMaxAge) {
+      record('stale');
+      return false;
+    }
+    if (sample.horizontalAccuracy == null) {
+      record('low-accuracy');
+      return false;
+    }
+    if (sample.horizontalAccuracy > this.maxHorizontalAccuracy) {
+      record('low-accuracy');
+      return false;
+    }
 
     // First valid sample — record the baseline; speed needs two fixes.
     if (candidate.lastValidSampleAt === null || candidate.lastValidSampleLat === null || candidate.lastValidSampleLon === null) {
       candidate.lastValidSampleAt = sampleAt;
       candidate.lastValidSampleLat = sample.latitude;
       candidate.lastValidSampleLon = sample.longitude;
+      record('baseline');
       return false;
     }
 
     const gapMs = sampleAt.getTime() - candidate.lastValidSampleAt.getTime();
 
-    // Out-of-order or duplicate fix: ignore it without moving the baseline backwards.
-    if (gapMs <= 0) return false;
+    if (gapMs <= 0) {
+      // Out-of-order or duplicate fix: ignore without moving the baseline backwards.
+      record('duplicate-time', { gapMs });
+      return false;
+    }
 
     const distanceMeters = this.haversineDistance(
       candidate.lastValidSampleLat,
@@ -157,8 +221,8 @@ class StationaryService {
     );
 
     if (gapMs < 1000) {
-      // Too close together to derive a trustworthy speed: just advance the baseline.
       this.advanceBaseline(candidate, sample, sampleAt);
+      record('noise-window', { gapMs });
       return false;
     }
 
@@ -167,16 +231,24 @@ class StationaryService {
     if (gapMs > this.maxSampleGap) {
       // Unknown movement during the gap — restart accumulation from this fix.
       candidate.accumulatedStationaryTimeMs = 0;
-    } else if (speedMps >= this.stationarySpeedThreshold) {
-      candidate.accumulatedStationaryTimeMs = 0;
-    } else {
-      candidate.accumulatedStationaryTimeMs += gapMs;
+      this.advanceBaseline(candidate, sample, sampleAt);
+      record('gap-reset', { speedMps, gapMs });
+      return false;
     }
 
+    if (speedMps >= this.stationarySpeedThreshold) {
+      candidate.accumulatedStationaryTimeMs = 0;
+      this.advanceBaseline(candidate, sample, sampleAt);
+      record('moving', { speedMps, gapMs });
+      return false;
+    }
+
+    candidate.accumulatedStationaryTimeMs += gapMs;
     this.advanceBaseline(candidate, sample, sampleAt);
 
-    const requiredStationaryMs = this.requiredStationaryDurationSeconds * 1000;
-    return candidate.accumulatedStationaryTimeMs >= requiredStationaryMs;
+    const reached = candidate.accumulatedStationaryTimeMs >= requiredMs;
+    record(reached ? 'triggered' : 'accumulating', { speedMps, gapMs });
+    return reached;
   }
 
   private advanceBaseline(candidate: StationaryCandidate, sample: LocationSample, sampleAt: Date): void {
@@ -201,6 +273,11 @@ class StationaryService {
 
     const requiredStationaryMs = this.requiredStationaryDurationSeconds * 1000;
     return Math.max(0, requiredStationaryMs - candidate.accumulatedStationaryTimeMs);
+  }
+
+  /** Evaluation of the most recent sample for a candidate (diagnostics). */
+  getLastEvaluation(reminderId: string): SampleEvaluation | null {
+    return this.candidates.get(reminderId)?.lastEvaluation ?? null;
   }
 
   listCandidates(): StationaryCandidate[] {

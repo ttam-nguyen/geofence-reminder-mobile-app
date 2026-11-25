@@ -5,6 +5,7 @@ import { Linking } from "react-native";
 import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import { setOnNotificationTap } from "../services/geofencingService";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -14,7 +15,7 @@ import { SettingsScreen } from "../screens/SettingsScreen";
 import { CreateReminderScreen } from "../screens/CreateReminderScreen";
 import { ReminderDetailScreen } from "../screens/ReminderDetailScreen";
 import { store } from "../stores/reminderStore";
-import { Colors, Typography } from "../theme";
+import { Colors, Spacing, Typography } from "../theme";
 import { enableScreens } from "react-native-screens";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 
@@ -43,7 +44,19 @@ export type TabParamList = {
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+/**
+ * Tab bar metrics.
+ * The system navigation inset is added to these, so the labels sit TAB_BAR_BOTTOM_GAP above the
+ * gesture/navigation bar instead of flush against it.
+ */
+const TAB_BAR_CONTENT_HEIGHT = 52;
+const TAB_BAR_TOP_PADDING = Spacing.xs;
+/** Visible gap between the tab labels and the system navigation bar. */
+const TAB_BAR_BOTTOM_GAP = Spacing.md;
+
 function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList, "Main">) {
+  const insets = useSafeAreaInsets();
+
   const navigateToCreate = (reminderId?: string, reminder?: Reminder) => {
     if (reminderId && reminder) {
       navigation.navigate("CreateReminder", { reminderId, reminder });
@@ -61,6 +74,11 @@ function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList
           backgroundColor: Colors.surface,
           borderTopColor: Colors.borderGlass,
           borderTopWidth: 1,
+          // Explicit height: when `height` is set, React Navigation stops adding the bottom
+          // inset itself, so both height and padding must account for it.
+          height: TAB_BAR_CONTENT_HEIGHT + TAB_BAR_TOP_PADDING + insets.bottom + TAB_BAR_BOTTOM_GAP,
+          paddingTop: TAB_BAR_TOP_PADDING,
+          paddingBottom: insets.bottom + TAB_BAR_BOTTOM_GAP,
         },
         tabBarLabelStyle: {
           fontSize: 12,

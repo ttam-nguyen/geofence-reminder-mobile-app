@@ -21,8 +21,8 @@
 import {
   AppState,
   AppStateStatus,
+  DeviceEventEmitter,
   Linking,
-  NativeEventEmitter,
   NativeModules,
   PermissionsAndroid,
   Platform,
@@ -95,6 +95,12 @@ let onNotificationTap: ((data: NotificationTapData) => void) | null = null;
 const updateIntervals = new Map<string, ReturnType<typeof setInterval>>();
 const gpsWatchIds = new Map<string, string | number>();
 
+/** Minimum spacing between stationary sample log lines, per reminder. */
+const SAMPLE_LOG_INTERVAL_MS = 10_000;
+const lastSampleLogRef = new Map<string, number>();
+const lastSampleVerdictRef = new Map<string, string>();
+
+let nativeQueueSubscription: { remove: () => void } | null = null;
 let initialized = false;
 let drainInFlight: Promise<void> | null = null;
 let reconcileInFlight: Promise<void> | null = null;
@@ -117,13 +123,14 @@ export function initGeofencingService(): void {
   }
   initialized = true;
 
-  // The native module is absent in unit tests and in builds where the module was not compiled.
-  // Geofencing is then unavailable, but the app must still start.
-  const emitter = GeofencingModule ? new NativeEventEmitter(GeofencingModule) : null;
-  if (!emitter) {
+  // The native side emits through RCTDeviceEventEmitter, so listen there. Constructing a
+  // NativeEventEmitter over a plain ReactContextBaseJavaModule logs a "missing addListener"
+  // warning on every launch and buys nothing.
+  if (!GeofencingModule) {
     log.warn('geofence', 'Native GeofencingModule unavailable — geofencing disabled');
   } else {
-    emitter.addListener(GEOFENCE_QUEUED_EVENT, payload => {
+    nativeQueueSubscription?.remove();
+    nativeQueueSubscription = DeviceEventEmitter.addListener(GEOFENCE_QUEUED_EVENT, payload => {
       log.debug('geofence', 'Native signalled queued geofence events', payload);
       void drainNativeGeofenceEvents();
     });
@@ -752,6 +759,30 @@ async function resumeStationaryTimer(reminder: Reminder): Promise<void> {
 export function processLocationSample(reminderId: string, sample: LocationSample): boolean {
   const triggered = stationaryService.processLocationSample(reminderId, sample);
 
+  // Record why the sample did or did not count. This is the only way to tell a "user kept
+  // walking" reset apart from "GPS accuracy too poor" or "gap too long" after the fact.
+  const evaluation = stationaryService.getLastEvaluation(reminderId);
+  if (evaluation) {
+    const now = Date.now();
+    const lastLogged = lastSampleLogRef.get(reminderId);
+    const verdictChanged = lastSampleVerdictRef.get(reminderId) !== evaluation.verdict;
+    const dueForHeartbeat = !lastLogged || now - lastLogged > SAMPLE_LOG_INTERVAL_MS;
+
+    if (verdictChanged || dueForHeartbeat || triggered) {
+      lastSampleLogRef.set(reminderId, now);
+      lastSampleVerdictRef.set(reminderId, evaluation.verdict);
+      log.debug('stationary', 'Sample evaluated', {
+        reminderId,
+        verdict: evaluation.verdict,
+        accuracy: evaluation.accuracy,
+        speedMps: evaluation.speedMps === null ? null : Number(evaluation.speedMps.toFixed(3)),
+        gapMs: evaluation.gapMs,
+        accumulatedMs: evaluation.accumulatedMs,
+        requiredMs: evaluation.requiredMs,
+      });
+    }
+  }
+
   // Best-effort crash-safety persistence (schema v2 columns).
   void store
     .updateStationaryReading(reminderId, {
@@ -930,6 +961,9 @@ export async function clearAllGeofences(): Promise<void> {
 
   appStateSubscription?.remove();
   appStateSubscription = null;
+
+  nativeQueueSubscription?.remove();
+  nativeQueueSubscription = null;
 
   initialized = false;
   onStatusChange = null;
