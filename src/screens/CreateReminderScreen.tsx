@@ -353,10 +353,6 @@ export function CreateReminderScreen(props: Props) {
       >
         <SafeArea edges={['bottom']} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-            <Text style={Typography.h2}>
-              {editing ? 'Edit Reminder' : 'Create Reminder'}
-            </Text>
-
             <View style={styles.field}>
               <Text style={Typography.bodySmall}>Title</Text>
               <TextInput
@@ -570,11 +566,7 @@ export function CreateReminderScreen(props: Props) {
                             onPress={() => pickPlace(place)}
                             style={styles.placeMain}
                           >
-                            <Icon
-                              name={place.saved ? "star" : "clock"}
-                              size={16}
-                              color={place.saved ? Colors.waitingAmber : Colors.textMuted}
-                            />
+                            <Icon name="pin" size={16} color={Colors.textMuted} />
                             <Text style={styles.placeName} numberOfLines={1}>
                               {place.name}
                             </Text>

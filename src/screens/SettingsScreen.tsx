@@ -176,29 +176,6 @@ export function SettingsScreen() {
   );
 
   // Send a test notification.
-  const handleTestNotification = useCallback(async () => {
-    setLoading(true);
-    try {
-      await notificationService.displayNotification({
-        id: `test_${Date.now()}`,
-        title: "Test Reminder",
-        body: "This is a test notification. Geofence notifications work the same way.",
-        data: { source: "test" },
-        trigger: "immediate",
-        android: {
-          channelId: "gps_reminder_default",
-          importance: 3,
-        },
-        ios: {
-          sound: "default",
-        },
-      });
-    } catch (err) {
-      console.warn("[Settings] Test notification failed:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   // Permission status label.
   const getPermissionLabel = (): string => {
@@ -301,20 +278,6 @@ export function SettingsScreen() {
             onToggle={() => handleVibrationToggle(!settings.notificationVibrationEnabled)}
           />
 
-          {/* Test notification button */}
-          <PressableArea
-            testID="settings.notifications.sendTest"
-            onPress={handleTestNotification}
-            disabled={loading || !isPermissionGranted}
-            style={[
-              styles.testButton,
-              (!loading && !isPermissionGranted) && styles.disabledButton,
-            ]}
-          >
-            <Text style={styles.testButtonText}>
-              {loading ? "Sending..." : "Send Test Notification"}
-            </Text>
-          </PressableArea>
         </View>
 
         <SectionDivider />
@@ -505,17 +468,5 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     ...Typography.bodySmall,
     color: Colors.textPrimary,
-  },
-  testButton: {
-    marginTop: Spacing.md,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: '#34C759',
-    borderRadius: BorderRadius.sm,
-    alignItems: "center",
-  },
-  testButtonText: {
-    ...Typography.bodySmall,
-    color: '#FFFFFF',
   },
 });

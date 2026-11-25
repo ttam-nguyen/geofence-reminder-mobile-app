@@ -211,8 +211,19 @@ export function MapScreen() {
         longitudeDelta: 0.05,
       };
     }
+
+    // Nothing to frame: open on the user, like the create screen's preview.
+    if (userLocation) {
+      return {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      };
+    }
+
     return DEFAULT_REGION;
-  }, [visibleReminders]);
+  }, [visibleReminders, userLocation]);
 
   const handleRootLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -278,6 +289,18 @@ export function MapScreen() {
     }));
 
     if (coordinates.length === 0) {
+      // No reminders to frame: centre the empty map on the user.
+      if (userLocation) {
+        mapRef.current?.animateToRegion(
+          {
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+          },
+          500,
+        );
+      }
       return;
     }
 
@@ -303,7 +326,7 @@ export function MapScreen() {
       },
       animated: true,
     });
-  }, [visibleReminders, mapReady, sheetHeightPx, insets.top]);
+  }, [visibleReminders, mapReady, sheetHeightPx, insets.top, userLocation]);
 
   // Shift the camera south so the target lands in the strip of map that the
   // sheet does not cover. `react-native-maps` has no setMapPadding() method and
@@ -402,10 +425,14 @@ export function MapScreen() {
     return offsets.sort((a, b) => a - b);
   }, [searchedReminders, rowLayouts, listViewportHeight]);
 
-  // Padding so the first and last cards can also reach the centre slot.
+  // Centring padding only matters when there is something to scroll between. With one result it
+  // just opened a void under the header.
   const listPaddingVertical = useMemo(
-    () => Math.max(Spacing.sm, (listViewportHeight - ROW_CENTER_REFERENCE_HEIGHT) / 2),
-    [listViewportHeight],
+    () =>
+      searchedReminders.length > 1
+        ? Math.max(Spacing.sm, (listViewportHeight - ROW_CENTER_REFERENCE_HEIGHT) / 2)
+        : Spacing.sm,
+    [listViewportHeight, searchedReminders.length],
   );
 
   const activeCount = searchedReminders.length;
@@ -535,9 +562,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
+    // Stacked, not side by side: the sheet is 70% of the screen, and a field plus a count on one
+    // row clipped the field and pushed the count past the sheet edge.
+    gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
     paddingBottom: Spacing.xs,
   },
@@ -568,6 +595,7 @@ const styles = StyleSheet.create({
   },
   sheetCount: {
     color: Colors.textMuted,
+    paddingHorizontal: Spacing.xs,
   },
   sheet: {
     position: "absolute",

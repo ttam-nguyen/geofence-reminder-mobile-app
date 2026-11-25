@@ -9,6 +9,8 @@ import { Reminder, ReminderStatus } from "../types/Reminder";
 import { Colors, Spacing, Typography, BorderRadius } from "../theme";
 import { PressableArea } from "../components/PressableArea";
 import { store, getStoreVersion, storeReady } from "../stores/reminderStore";
+import { haversineDistance } from "../models/haversine";
+import Geolocation from "@react-native-community/geolocation";
 import { useFocusEffect } from "@react-navigation/native";
 
 // Re-export for use in other screens.
@@ -21,17 +23,66 @@ interface HomeScreenProps {
 
 const FILTER_OPTIONS: { label: string; status: ReminderStatus | null }[] = [
   { label: "All", status: null },
-  { label: "Active", status: ReminderStatus.ARMED },
   { label: "Waiting", status: ReminderStatus.WAITING_FOR_EXIT },
+  { label: "Active", status: ReminderStatus.ARMED },
   { label: "Triggered", status: ReminderStatus.TRIGGERED },
-  { label: "Completed", status: ReminderStatus.COMPLETED },
 ];
+
+/**
+ * Home list order: what needs attention first.
+ * 1. Waiting for Exit, then Active, then Triggered (the states the user acts on).
+ * 2. Distance from the user, nearest first.
+ * 3. Title, alphanumerically.
+ */
+const STATUS_PRIORITY: Record<ReminderStatus, number> = {
+  [ReminderStatus.WAITING_FOR_EXIT]: 0,
+  [ReminderStatus.ARMED]: 1,
+  [ReminderStatus.ARRIVAL_PENDING]: 2,
+  [ReminderStatus.TRIGGERED]: 3,
+  [ReminderStatus.PAUSED]: 4,
+  [ReminderStatus.DRAFT]: 5,
+  [ReminderStatus.COMPLETED]: 6,
+  [ReminderStatus.CANCELLED]: 7,
+  [ReminderStatus.DELETED]: 8,
+};
+
+export interface SortContext {
+  latitude: number;
+  longitude: number;
+}
+
+function distanceOrInfinity(reminder: Reminder, origin: SortContext | null): number {
+  if (!origin) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return haversineDistance(origin.latitude, origin.longitude, reminder.latitude, reminder.longitude);
+}
+
+/** Pure comparator so the ordering can be tested without rendering the screen. */
+export function compareReminders(
+  a: Reminder,
+  b: Reminder,
+  origin: SortContext | null,
+): number {
+  const byStatus = (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99);
+  if (byStatus !== 0) {
+    return byStatus;
+  }
+
+  const byDistance = distanceOrInfinity(a, origin) - distanceOrInfinity(b, origin);
+  if (Number.isFinite(byDistance) && byDistance !== 0) {
+    return byDistance;
+  }
+
+  return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: "base" });
+}
 
 export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScreenProps) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ReminderStatus | null>(null);
+  const [userLocation, setUserLocation] = useState<SortContext | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -46,6 +97,25 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
         }
       }
       loadReminders();
+
+      // Distance ordering needs a position; a failure just falls back to title order.
+      Geolocation.getCurrentPosition(
+        position => {
+          if (!cancelled) {
+            setUserLocation({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            });
+          }
+        },
+        () => {
+          if (!cancelled) {
+            setUserLocation(null);
+          }
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+      );
+
       return () => {
         cancelled = true;
       };
@@ -71,8 +141,8 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
         r => r.title.toLowerCase().includes(q) || (r.description?.toLowerCase().includes(q) ?? false),
       );
     }
-    return items;
-  }, [reminders, statusFilter, searchQuery]);
+    return [...items].sort((a, b) => compareReminders(a, b, userLocation));
+  }, [reminders, statusFilter, searchQuery, userLocation]);
 
   const getEmptyMessage = (): string => {
     if (reminders.length === 0) {
