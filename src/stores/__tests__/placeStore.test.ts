@@ -1,11 +1,13 @@
 // Tests for the shared saved/recent place store.
 
 import {
+  MAX_PLACE_NAME_LENGTH,
   clearHistory,
   listPlaces,
   listSavedPlaces,
   rememberPlace,
   removePlace,
+  renamePlace,
   resetPlacesForTests,
   setPlaceSaved,
   sortPlaces,
@@ -72,6 +74,43 @@ describe('setPlaceSaved', () => {
 
     expect(places).toHaveLength(1);
     expect(places[0].saved).toBe(false);
+  });
+});
+
+describe('renamePlace', () => {
+  it('renames a saved place and keeps its star', async () => {
+    const [home] = await rememberPlace(HOME);
+    await setPlaceSaved(home.id, true);
+
+    const places = await renamePlace(home.id, '  Flat  ');
+
+    expect(places[0].name).toBe('Flat');
+    expect(places[0].saved).toBe(true);
+  });
+
+  it('rejects a blank name instead of clearing it', async () => {
+    const [home] = await rememberPlace(HOME);
+
+    await expect(renamePlace(home.id, '   ')).rejects.toThrow('cannot be empty');
+    expect((await listPlaces())[0].name).toBe('Home');
+  });
+
+  it('trims to the maximum length', async () => {
+    const [home] = await rememberPlace(HOME);
+
+    const places = await renamePlace(home.id, 'x'.repeat(MAX_PLACE_NAME_LENGTH + 20));
+
+    expect(places[0].name).toHaveLength(MAX_PLACE_NAME_LENGTH);
+  });
+
+  it('does not rename a favourite into a new record', async () => {
+    const [home] = await rememberPlace(HOME);
+
+    await renamePlace(home.id, 'Parents');
+
+    const places = await listPlaces();
+    expect(places).toHaveLength(1);
+    expect(places[0].latitude).toBeCloseTo(HOME.latitude, 5);
   });
 });
 

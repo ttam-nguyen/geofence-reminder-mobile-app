@@ -4,7 +4,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  KeyboardAvoidingView,
   LayoutChangeEvent,
+  Modal,
   PanResponder,
   Platform,
   StyleSheet,
@@ -20,11 +22,20 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Colors, Spacing, Typography, BorderRadius } from "../theme";
 import { store, storeReady } from "../stores/reminderStore";
+import { log } from "../services/logger";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { ReminderCard } from "../components/ReminderCard";
 import { PressableArea } from "../components/PressableArea";
 import { Icon } from "../components/Icon";
 import { haversineDistance } from "../models/haversine";
+import {
+  MAX_PLACE_NAME_LENGTH,
+  listPlaces,
+  removePlace,
+  renamePlace,
+  setPlaceSaved,
+  type SavedPlace,
+} from "../stores/placeStore";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 
 const STATUS_LABELS: Record<ReminderStatus, string> = {
@@ -105,6 +116,11 @@ export function MapScreen() {
 
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  /** The sheet shows either monitored reminders or saved places. */
+  const [mode, setMode] = useState<"reminders" | "favourites">("reminders");
+  const [places, setPlaces] = useState<SavedPlace[]>([]);
+  const [editingPlaceId, setEditingPlaceId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
   const [rowLayouts, setRowLayouts] = useState<Record<string, RowLayout>>({});
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -152,6 +168,14 @@ export function MapScreen() {
         }
       }
       loadReminders();
+
+      listPlaces()
+        .then(items => {
+          if (!cancelled) {
+            setPlaces(items);
+          }
+        })
+        .catch(error => log.error("places", "Failed to load places", { error: String(error) }));
 
       Geolocation.getCurrentPosition(
         coords => {
@@ -201,8 +225,125 @@ export function MapScreen() {
     );
   }, [visibleReminders, searchQuery]);
 
+  /** Starred places only, nearest first when a fix exists. */
+  const savedPlaces = useMemo(() => {
+    const favourites = places.filter(place => place.saved);
+    const query = searchQuery.trim().toLowerCase();
+    const matched = query
+      ? favourites.filter(place => place.name.toLowerCase().includes(query))
+      : favourites;
+
+    if (!userLocation) {
+      return [...matched].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    }
+
+    return [...matched].sort(
+      (a, b) =>
+        haversineDistance(userLocation.latitude, userLocation.longitude, a.latitude, a.longitude) -
+        haversineDistance(userLocation.latitude, userLocation.longitude, b.latitude, b.longitude),
+    );
+  }, [places, searchQuery, userLocation]);
+
+  const activeIds = useMemo(
+    () => (mode === "reminders" ? searchedReminders.map(item => item.id) : savedPlaces.map(place => place.id)),
+    [mode, searchedReminders, savedPlaces],
+  );
+
+  const distanceFor = useCallback(
+    (latitude: number, longitude: number): string => {
+      if (!userLocation) {
+        return "";
+      }
+      const metres = haversineDistance(userLocation.latitude, userLocation.longitude, latitude, longitude);
+      return metres < 1000 ? `${Math.round(metres / 10) * 10} m` : `${(metres / 1000).toFixed(1)} km`;
+    },
+    [userLocation],
+  );
+
+  /** Switching modes resets layouts, the query and the scroll position. */
+  const switchMode = useCallback(
+    (next: "reminders" | "favourites") => {
+      if (next === mode) {
+        return;
+      }
+      setMode(next);
+      setSearchQuery("");
+      setRowLayouts({});
+      setEditingPlaceId(null);
+      userSelectedRef.current = false;
+      scrollY.setValue(0);
+    },
+    [mode, scrollY],
+  );
+
+  // Rename uses its own dialog: the sheet is anchored to the bottom, so an inline field sits
+  // behind the keyboard. A centred card keeps the input visible on both platforms.
+  const beginRename = useCallback((place: SavedPlace) => {
+    setEditingPlaceId(place.id);
+    setEditingName(place.name);
+  }, []);
+
+  const cancelRename = useCallback(() => {
+    setEditingPlaceId(null);
+    setEditingName("");
+  }, []);
+
+  const commitRename = useCallback(async () => {
+    const placeId = editingPlaceId;
+    if (!placeId) {
+      return;
+    }
+    const name = editingName.trim();
+    if (name.length === 0) {
+      // Keep the dialog open: an empty name is rejected rather than silently dropped.
+      return;
+    }
+    setEditingPlaceId(null);
+    try {
+      setPlaces(await renamePlace(placeId, name));
+      log.info("places", "Place renamed", { placeId });
+    } catch (error) {
+      log.warn("places", "Rename rejected", { placeId, error: String(error) });
+    }
+  }, [editingPlaceId, editingName]);
+
+  const toggleSaved = useCallback(async (place: SavedPlace) => {
+    try {
+      setPlaces(await setPlaceSaved(place.id, !place.saved));
+    } catch (error) {
+      log.warn("places", "Failed to update favourite", { placeId: place.id, error: String(error) });
+    }
+  }, []);
+
+  const forgetPlace = useCallback(async (place: SavedPlace) => {
+    try {
+      setPlaces(await removePlace(place.id));
+      log.info("places", "Place removed", { placeId: place.id });
+    } catch (error) {
+      log.warn("places", "Failed to remove place", { placeId: place.id, error: String(error) });
+    }
+  }, []);
+
+  const focusOn = useCallback(
+    (latitude: number, longitude: number, delta = SINGLE_MARKER_DELTA) => {
+      userSelectedRef.current = true;
+      mapRef.current?.animateToRegion(
+        {
+          latitude: latitude - toCenterOffset(delta),
+          longitude,
+          latitudeDelta: delta,
+          longitudeDelta: delta,
+        },
+        600,
+      );
+    },
+    // toCenterOffset is stable for a given sheet/area combination.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sheetHeightPx, mapAreaHeight],
+  );
+
   const initialRegion = useMemo(() => {
-    const first = visibleReminders[0];
+    const first = mode === "reminders" ? visibleReminders[0] : savedPlaces[0];
     if (first) {
       return {
         latitude: first.latitude,
@@ -223,7 +364,7 @@ export function MapScreen() {
     }
 
     return DEFAULT_REGION;
-  }, [visibleReminders, userLocation]);
+  }, [mode, visibleReminders, savedPlaces, userLocation]);
 
   const handleRootLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -283,10 +424,10 @@ export function MapScreen() {
       return;
     }
 
-    const coordinates = visibleReminders.map(r => ({
-      latitude: r.latitude,
-      longitude: r.longitude,
-    }));
+    const coordinates =
+      mode === "reminders"
+        ? visibleReminders.map(r => ({ latitude: r.latitude, longitude: r.longitude }))
+        : savedPlaces.map(place => ({ latitude: place.latitude, longitude: place.longitude }));
 
     if (coordinates.length === 0) {
       // No reminders to frame: centre the empty map on the user.
@@ -326,7 +467,7 @@ export function MapScreen() {
       },
       animated: true,
     });
-  }, [visibleReminders, mapReady, sheetHeightPx, insets.top, userLocation]);
+  }, [visibleReminders, savedPlaces, mode, mapReady, sheetHeightPx, insets.top, userLocation]);
 
   // Shift the camera south so the target lands in the strip of map that the
   // sheet does not cover. `react-native-maps` has no setMapPadding() method and
@@ -416,23 +557,23 @@ export function MapScreen() {
       return undefined;
     }
 
-    const offsets = searchedReminders
-      .map(item => rowLayouts[item.id])
+    const offsets = activeIds
+      .map(id => rowLayouts[id])
       .filter((layout): layout is RowLayout => Boolean(layout))
       .map(layout => Math.max(0, layout.y + layout.height / 2 - listViewportHeight / 2));
 
     // react-native requires ascending snap offsets.
     return offsets.sort((a, b) => a - b);
-  }, [searchedReminders, rowLayouts, listViewportHeight]);
+  }, [activeIds, rowLayouts, listViewportHeight]);
 
   // Centring padding only matters when there is something to scroll between. With one result it
   // just opened a void under the header.
   const listPaddingVertical = useMemo(
     () =>
-      searchedReminders.length > 1
+      activeIds.length > 1
         ? Math.max(Spacing.sm, (listViewportHeight - ROW_CENTER_REFERENCE_HEIGHT) / 2)
         : Spacing.sm,
-    [listViewportHeight, searchedReminders.length],
+    [listViewportHeight, activeIds.length],
   );
 
   const activeCount = searchedReminders.length;
@@ -446,13 +587,13 @@ export function MapScreen() {
         initialRegion={initialRegion}
         onMapReady={() => setMapReady(true)}
       >
-        {visibleReminders.map(r => (
+        {(mode === "reminders" ? visibleReminders : savedPlaces).map(r => (
           <Marker
             key={r.id}
             coordinate={{ latitude: r.latitude, longitude: r.longitude }}
-            title={r.title}
-            description={STATUS_LABELS[r.status]}
-            pinColor={STATUS_COLORS[r.status]}
+            title={"title" in r ? r.title : r.name}
+            description={"status" in r ? STATUS_LABELS[r.status] : "Saved place"}
+            pinColor={"status" in r ? STATUS_COLORS[r.status] : Colors.waitingAmber}
           />
         ))}
       </MapView>
@@ -491,14 +632,44 @@ export function MapScreen() {
         </View>
 
         <View style={styles.sheetHeader}>
+          {/* One sheet, two lists: monitored reminders, or the saved places they can be made from. */}
+          <View style={styles.modeToggle}>
+            <PressableArea
+              testID="map.mode.reminders"
+              accessibilityLabel="Show reminders"
+              accessibilityRole="tab"
+              accessibilityState={{ selected: mode === "reminders" }}
+              onPress={() => switchMode("reminders")}
+              style={[styles.modeButton, mode === "reminders" && styles.modeButtonActive]}
+            >
+              <Text style={[styles.modeButtonText, mode === "reminders" && styles.modeButtonTextActive]}>
+                Reminders
+              </Text>
+            </PressableArea>
+            <PressableArea
+              testID="map.mode.favourites"
+              accessibilityLabel="Show saved places"
+              accessibilityRole="tab"
+              accessibilityState={{ selected: mode === "favourites" }}
+              onPress={() => switchMode("favourites")}
+              style={[styles.modeButton, mode === "favourites" && styles.modeButtonActive]}
+            >
+              <Text style={[styles.modeButtonText, mode === "favourites" && styles.modeButtonTextActive]}>
+                Saved
+              </Text>
+            </PressableArea>
+          </View>
+
           <View style={styles.searchField}>
             <Icon name="search" size={16} color={Colors.textMuted} />
             <TextInput
               testID="map.search.input"
-              accessibilityLabel="Search reminders on the map"
+              accessibilityLabel={
+                mode === "reminders" ? "Search reminders on the map" : "Search saved places"
+              }
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search reminders…"
+              placeholder={mode === "reminders" ? "Search reminders…" : "Search saved places…"}
               placeholderTextColor={Colors.textMuted}
               style={styles.searchInput}
               returnKeyType="search"
@@ -516,14 +687,20 @@ export function MapScreen() {
             ) : null}
           </View>
           <Text style={[Typography.caption, styles.sheetCount]}>
-            {activeCount} nearby
+            {mode === "reminders" ? `${activeCount} nearby` : `${activeCount} saved`}
           </Text>
         </View>
 
-        {searchedReminders.length === 0 ? (
+        {activeIds.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={[Typography.bodySmall, styles.emptyText]}>
-              {searchQuery ? `No reminders match “${searchQuery}”.` : "No reminders to display."}
+              {mode === "favourites"
+                ? searchQuery
+                  ? `No saved places match \u201c${searchQuery}\u201d.`
+                  : "No saved places yet. Star a search result to save it here."
+                : searchQuery
+                  ? `No reminders match \u201c${searchQuery}\u201d.`
+                  : "No reminders to display."}
             </Text>
           </View>
         ) : (
@@ -538,20 +715,123 @@ export function MapScreen() {
             overScrollMode="never"
             onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
             scrollEventThrottle={16}
-            showsVerticalScrollIndicator={searchedReminders.length > 1}
+            showsVerticalScrollIndicator={activeIds.length > 1}
           >
-            {searchedReminders.map(item => (
-              <Animated.View
-                key={item.id}
-                onLayout={event => handleRowLayout(item.id, event)}
-                style={[styles.row, rowAnimatedStyle(item.id)]}
-              >
-                <ReminderCard reminder={item} onPress={handleCardPress} />
-              </Animated.View>
-            ))}
+            {mode === "reminders"
+              ? searchedReminders.map(item => (
+                  <Animated.View
+                    key={item.id}
+                    onLayout={event => handleRowLayout(item.id, event)}
+                    style={[styles.row, rowAnimatedStyle(item.id)]}
+                  >
+                    <ReminderCard reminder={item} onPress={handleCardPress} />
+                  </Animated.View>
+                ))
+              : savedPlaces.map(place => (
+                  <Animated.View
+                    key={place.id}
+                    onLayout={event => handleRowLayout(place.id, event)}
+                    style={[styles.row, rowAnimatedStyle(place.id)]}
+                  >
+                    <View style={styles.placeRow}>
+                      <PressableArea
+                        testID={`map.place.${place.id}`}
+                        accessibilityLabel={`${place.name}, saved place`}
+                        accessibilityHint="Tap to centre the map, long press to rename"
+                        accessibilityRole="button"
+                        onPress={() => focusOn(place.latitude, place.longitude)}
+                        onLongPress={() => beginRename(place)}
+                        style={styles.placeNameButton}
+                      >
+                        <Text style={styles.placeName} numberOfLines={1}>
+                          {place.name}
+                        </Text>
+                        <Text style={styles.placeMeta} numberOfLines={1}>
+                          {distanceFor(place.latitude, place.longitude)}
+                        </Text>
+                      </PressableArea>
+
+                      <PressableArea
+                        testID={`map.place.${place.id}.rename`}
+                        accessibilityLabel={`Rename ${place.name}`}
+                        accessibilityRole="button"
+                        onPress={() => beginRename(place)}
+                        style={styles.placeAction}
+                      >
+                        <Icon name="pencil" size={18} color={Colors.textMuted} />
+                      </PressableArea>
+
+                      <PressableArea
+                        testID={`map.place.${place.id}.remove`}
+                        accessibilityLabel={`Remove ${place.name}`}
+                        accessibilityRole="button"
+                        onPress={() => {
+                          void forgetPlace(place);
+                        }}
+                        style={styles.placeAction}
+                      >
+                        <Icon name="trash" size={18} color={Colors.textMuted} />
+                      </PressableArea>
+                    </View>
+                  </Animated.View>
+                ))}
           </Animated.ScrollView>
         )}
       </Animated.View>
+
+      <Modal
+        visible={editingPlaceId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={cancelRename}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.renameBackdrop}
+        >
+          <View style={styles.renameCard}>
+            <Text style={[Typography.h3, styles.renameTitle]}>Rename place</Text>
+            <TextInput
+              testID="map.rename.input"
+              accessibilityLabel="Place name"
+              value={editingName}
+              onChangeText={setEditingName}
+              autoFocus
+              maxLength={MAX_PLACE_NAME_LENGTH}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                void commitRename();
+              }}
+              placeholder="e.g. Home, Gym, Mum's place"
+              placeholderTextColor={Colors.textMuted}
+              style={styles.renameInput}
+            />
+            <View style={styles.renameActions}>
+              <PressableArea
+                testID="map.rename.cancel"
+                accessibilityLabel="Cancel rename"
+                accessibilityRole="button"
+                onPress={cancelRename}
+                style={[styles.renameButton, styles.renameCancel]}
+              >
+                <Text style={styles.renameCancelText}>Cancel</Text>
+              </PressableArea>
+              <PressableArea
+                testID="map.rename.save"
+                accessibilityLabel="Save place name"
+                accessibilityRole="button"
+                disabled={editingName.trim().length === 0}
+                onPress={() => {
+                  void commitRename();
+                }}
+                style={[styles.renameButton, styles.renameSave]}
+              >
+                <Text style={styles.renameSaveText}>Save</Text>
+              </PressableArea>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -567,6 +847,123 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
     paddingBottom: Spacing.xs,
+  },
+  modeToggle: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+    padding: Spacing.xs,
+    borderRadius: BorderRadius.pill,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+  },
+  modeButton: {
+    flex: 1,
+    minHeight: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: BorderRadius.pill,
+  },
+  modeButtonActive: {
+    backgroundColor: Colors.signalRed,
+  },
+  modeButtonText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+  },
+  modeButtonTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  placeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    minHeight: 56,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surfaceGlass,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+  },
+  placeNameButton: {
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 44,
+  },
+  placeName: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+  },
+  placeMeta: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+  },
+  renameBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  renameCard: {
+    width: "100%",
+    maxWidth: 360,
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+  },
+  renameTitle: {
+    marginBottom: Spacing.xs,
+  },
+  renameInput: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    minHeight: 48,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+  },
+  renameActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  renameButton: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: BorderRadius.md,
+  },
+  renameCancel: {
+    backgroundColor: Colors.surfaceGlass,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+  },
+  renameCancelText: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+  },
+  renameSave: {
+    backgroundColor: Colors.signalRed,
+  },
+  renameSaveText: {
+    ...Typography.body,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  placeAction: {
+    width: 40,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchField: {
     flex: 1,

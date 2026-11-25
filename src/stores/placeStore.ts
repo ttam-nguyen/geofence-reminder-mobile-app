@@ -162,6 +162,24 @@ export async function rememberPlace(input: PlaceInput): Promise<SavedPlace[]> {
   return listPlaces();
 }
 
+/** Longest accepted custom name. */
+export const MAX_PLACE_NAME_LENGTH = 40;
+
+/**
+ * Rename a place. Blank names are rejected rather than silently dropped, so the caller can keep
+ * the editor open and show why.
+ */
+export async function renamePlace(placeId: string, name: string): Promise<SavedPlace[]> {
+  const trimmed = name.trim().slice(0, MAX_PLACE_NAME_LENGTH);
+  if (trimmed.length === 0) {
+    throw new Error('A place name cannot be empty');
+  }
+
+  const places = await read();
+  await write(places.map(place => (place.id === placeId ? { ...place, name: trimmed } : place)));
+  return listPlaces();
+}
+
 /** Star or unstar a place. Unknown ids are ignored. */
 export async function setPlaceSaved(placeId: string, saved: boolean): Promise<SavedPlace[]> {
   const places = await read();
