@@ -1,10 +1,11 @@
 // ReminderCard — glass-styled card showing a reminder's summary with status badge and overflow menu.
 
 import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet, Platform, Modal, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, Platform, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { Colors, Spacing, Typography, BorderRadius } from "../theme";
+import { PressableArea } from "./PressableArea";
 
 interface ReminderCardProps {
   reminder: Reminder;
@@ -42,7 +43,7 @@ export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCar
   const isTriggered = reminder.status === ReminderStatus.TRIGGERED;
 
   return (
-    <Pressable
+    <PressableArea
       testID={`home.reminder.card.${reminder.id}`}
       accessibilityLabel={`${reminder.title} — ${statusLabels[reminder.status]}`}
       accessibilityRole="button"
@@ -58,7 +59,7 @@ export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCar
           <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
             <Text style={styles.statusText}>{statusLabels[reminder.status]}</Text>
           </View>
-          <TouchableOpacity
+          <PressableArea
             testID={`home.reminder.overflow.${reminder.id}`}
             accessibilityLabel="More options"
             accessibilityRole="button"
@@ -66,7 +67,7 @@ export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCar
             style={styles.overflowButton}
           >
             <Text style={styles.overflowIcon}>⋮</Text>
-          </TouchableOpacity>
+          </PressableArea>
         </View>
       </View>
 
@@ -86,13 +87,13 @@ export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCar
 
       {/* Overflow menu */}
       <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
-        <Pressable style={styles.menuBackdrop} onPress={() => setShowMenu(false)}>
+        <PressableArea style={styles.menuBackdrop} onPress={() => setShowMenu(false)}>
           {/* SafeAreaView keeps the whole sheet clear of the home indicator /
               Android system navigation bar, which otherwise clips the menu. */}
           <SafeAreaView style={styles.menuSafeArea} edges={["left", "right", "bottom"]}>
             <View style={styles.menu}>
               {!isTriggered && (
-                <Pressable
+                <PressableArea
                   testID={`home.reminder.overflow.edit.${reminder.id}`}
                   accessibilityLabel="Edit reminder"
                   accessibilityRole="button"
@@ -103,10 +104,10 @@ export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCar
                   style={styles.menuItem}
                 >
                   <Text style={styles.menuItemText}>Edit</Text>
-                </Pressable>
+                </PressableArea>
               )}
               {!isTriggered && (
-                <Pressable
+                <PressableArea
                   testID={`home.reminder.overflow.complete.${reminder.id}`}
                   accessibilityLabel="Complete reminder"
                   accessibilityRole="button"
@@ -117,9 +118,9 @@ export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCar
                   style={styles.menuItem}
                 >
                   <Text style={styles.menuItemText}>Complete</Text>
-                </Pressable>
+                </PressableArea>
               )}
-              <Pressable
+              <PressableArea
                 testID={`home.reminder.overflow.delete.${reminder.id}`}
                 accessibilityLabel="Delete reminder"
                 accessibilityRole="button"
@@ -130,12 +131,12 @@ export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCar
                 style={styles.menuItem}
               >
                 <Text style={[styles.menuItemText, styles.deleteText]}>Delete</Text>
-              </Pressable>
+              </PressableArea>
             </View>
           </SafeAreaView>
-        </Pressable>
+        </PressableArea>
       </Modal>
-    </Pressable>
+    </PressableArea>
   );
 }
 

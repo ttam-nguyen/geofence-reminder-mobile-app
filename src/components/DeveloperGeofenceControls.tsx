@@ -11,6 +11,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { Typography, Colors, Spacing, BorderRadius } from "../theme";
+import { PressableArea } from "./PressableArea";
 import * as geofencingService from "../services/geofencingService";
 import type { GeofenceInfo, GeofenceEvent } from "../services/geofencingService";
 import type { StationaryCandidate } from "../services/stationaryService";
@@ -111,20 +112,20 @@ function DeveloperGeofenceControls({ onSimulatedEvent }: DeveloperGeofenceContro
                 {gf.reminderId} — ({gf.latitude.toFixed(4)}, {gf.longitude.toFixed(4)})
               </Text>
               <View style={styles.geofenceActions}>
-                <Pressable
+                <PressableArea
                   testID={`dev.simulateEnter.${gf.reminderId}`}
                   onPress={() => handleSimulateEnter(gf.reminderId)}
                   style={[styles.simButton, styles.enterButton]}
                 >
                   <Text style={styles.simButtonText}>Simulate ENTER</Text>
-                </Pressable>
-                <Pressable
+                </PressableArea>
+                <PressableArea
                   testID={`dev.simulateExit.${gf.reminderId}`}
                   onPress={() => handleSimulateExit(gf.reminderId)}
                   style={[styles.simButton, styles.exitButton]}
                 >
                   <Text style={styles.simButtonText}>Simulate EXIT</Text>
-                </Pressable>
+                </PressableArea>
               </View>
             </View>
           ))

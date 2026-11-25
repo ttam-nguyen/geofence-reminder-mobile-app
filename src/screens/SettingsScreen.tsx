@@ -1,9 +1,10 @@
 // Settings screen — full settings with notifications, permissions, privacy, and about sections.
 
 import React, { useState, useCallback, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking, PermissionsAndroid, Platform, Share } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Linking, PermissionsAndroid, Platform, Share } from "react-native";
 import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
 import { Colors, Spacing, Typography, BorderRadius, PlatformConstants } from "../theme";
+import { PressableArea } from "../components/PressableArea";
 import {
   getSettings,
   subscribe,
@@ -25,7 +26,7 @@ type SwitchProps = {
 
 function Switch({ enabled, onToggle }: SwitchProps) {
   return (
-    <Pressable
+    <PressableArea
       accessibilityRole="switch"
       accessibilityState={{ selected: enabled }}
       accessibilityLabel={enabled ? "Enabled" : "Disabled"}
@@ -33,7 +34,7 @@ function Switch({ enabled, onToggle }: SwitchProps) {
       style={[styles.switchTrack, enabled && styles.switchTrackOn]}
     >
       <View style={[styles.switchThumb, enabled && styles.switchThumbOn]} />
-    </Pressable>
+    </PressableArea>
   );
 }
 
@@ -244,7 +245,7 @@ export function SettingsScreen() {
 
           {/* Permission request / status button */}
           {notificationStatus === "denied" ? (
-            <Pressable
+            <PressableArea
               testID="settings.notifications.openSystemSettings"
               accessibilityLabel="Open system settings for notifications"
               accessibilityRole="button"
@@ -252,9 +253,9 @@ export function SettingsScreen() {
               style={[styles.permissionButton, styles.glassButton]}
             >
               <Text style={styles.permissionButtonText}>Open Settings</Text>
-            </Pressable>
+            </PressableArea>
           ) : notificationStatus === "unspecified" ? (
-            <Pressable
+            <PressableArea
               testID="settings.notifications.requestPermission"
               accessibilityLabel="Request notification permission"
               accessibilityRole="button"
@@ -269,7 +270,7 @@ export function SettingsScreen() {
               <Text style={styles.primaryButtonText}>
                 {loading ? "Requesting..." : getPermissionLabel()}
               </Text>
-            </Pressable>
+            </PressableArea>
           ) : (
             <View style={styles.permissionButton}>
               <Text style={styles.primaryButtonText}>✓ {getPermissionLabel()}</Text>
@@ -299,7 +300,7 @@ export function SettingsScreen() {
           />
 
           {/* Test notification button */}
-          <Pressable
+          <PressableArea
             testID="settings.notifications.sendTest"
             onPress={handleTestNotification}
             disabled={loading || !isPermissionGranted}
@@ -311,7 +312,7 @@ export function SettingsScreen() {
             <Text style={styles.testButtonText}>
               {loading ? "Sending..." : "Send Test Notification"}
             </Text>
-          </Pressable>
+          </PressableArea>
         </View>
 
         <SectionDivider />
@@ -321,7 +322,7 @@ export function SettingsScreen() {
           <SectionTitle>Permissions</SectionTitle>
           <View style={styles.permissionRow}>
             <Text style={Typography.body}>Location permission</Text>
-            <Pressable
+            <PressableArea
               testID="settings.permissions.openSystemSettings"
               accessibilityLabel="Open system settings"
               accessibilityRole="button"
@@ -329,7 +330,7 @@ export function SettingsScreen() {
               style={[styles.permissionButton, styles.glassButton]}
             >
               <Text style={styles.permissionButtonText}>Open Settings</Text>
-            </Pressable>
+            </PressableArea>
           </View>
 
           {Platform.OS === "android" && (
@@ -344,7 +345,7 @@ export function SettingsScreen() {
                       : "Required for alerts while the app is closed"}
                 </Text>
               </View>
-              <Pressable
+              <PressableArea
                 testID="settings.permissions.backgroundLocation"
                 accessibilityLabel="Open system settings to allow background location"
                 accessibilityRole="button"
@@ -361,7 +362,7 @@ export function SettingsScreen() {
                 style={[styles.permissionButton, styles.glassButton]}
               >
                 <Text style={styles.permissionButtonText}>Allow</Text>
-              </Pressable>
+              </PressableArea>
             </View>
           )}
         </View>
@@ -400,7 +401,7 @@ export function SettingsScreen() {
             Arrival detection keeps a local log of geofence events and status changes.
           </Text>
           <View style={styles.permissionRow}>
-            <Pressable
+            <PressableArea
               testID="settings.diagnostics.exportLogs"
               accessibilityLabel="Export diagnostics log"
               accessibilityRole="button"
@@ -409,8 +410,8 @@ export function SettingsScreen() {
               style={[styles.permissionButton, styles.glassButton]}
             >
               <Text style={styles.permissionButtonText}>{diagnosticsBusy ? "Working…" : "Export logs"}</Text>
-            </Pressable>
-            <Pressable
+            </PressableArea>
+            <PressableArea
               testID="settings.diagnostics.clearLogs"
               accessibilityLabel="Clear diagnostics log"
               accessibilityRole="button"
@@ -419,7 +420,7 @@ export function SettingsScreen() {
               style={[styles.permissionButton, styles.glassButton]}
             >
               <Text style={styles.permissionButtonText}>Clear logs</Text>
-            </Pressable>
+            </PressableArea>
           </View>
         </View>
 

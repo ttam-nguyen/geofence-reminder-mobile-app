@@ -6,7 +6,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Pressable,
   Alert,
   Platform,
 } from "react-native";
@@ -18,6 +17,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { Colors, Spacing, Typography, BorderRadius } from "../theme";
+import { PressableArea } from "../components/PressableArea";
 import { store } from "../stores/reminderStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Detail">;
@@ -197,7 +197,7 @@ export function ReminderDetailScreen({ navigation, route }: Props) {
 
         {/* Bottom actions */}
         <View style={styles.buttonRow}>
-          <Pressable
+          <PressableArea
             testID="detail.edit.button"
             accessibilityLabel="Edit reminder"
             accessibilityRole="button"
@@ -205,9 +205,9 @@ export function ReminderDetailScreen({ navigation, route }: Props) {
             style={[styles.button, styles.editButton]}
           >
             <Text style={styles.editButtonText}>Edit</Text>
-          </Pressable>
+          </PressableArea>
           {!isTriggered && (
-            <Pressable
+            <PressableArea
               testID="detail.complete.button"
               accessibilityLabel="Complete reminder"
               accessibilityRole="button"
@@ -215,9 +215,9 @@ export function ReminderDetailScreen({ navigation, route }: Props) {
               style={[styles.button, styles.completeButton]}
             >
               <Text style={styles.completeButtonText}>Complete</Text>
-            </Pressable>
+            </PressableArea>
           )}
-          <Pressable
+          <PressableArea
             testID="detail.delete.button"
             accessibilityLabel="Delete reminder"
             accessibilityRole="button"
@@ -225,7 +225,7 @@ export function ReminderDetailScreen({ navigation, route }: Props) {
             style={[styles.button, styles.deleteButton]}
           >
             <Text style={styles.deleteButtonText}>Delete</Text>
-          </Pressable>
+          </PressableArea>
         </View>
       </ScrollView>
     </SafeArea>

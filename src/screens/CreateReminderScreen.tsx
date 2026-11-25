@@ -10,7 +10,6 @@ import {
   PermissionsAndroid,
   SafeAreaView as RNSafeAreaView,
   ScrollView,
-  Pressable,
   Switch,
   KeyboardAvoidingView,
 } from 'react-native';
@@ -18,6 +17,7 @@ import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
 import type { Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
+import { PressableArea, PrimaryActionButton } from "../components/PressableArea";
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { Reminder, ReminderStatus, LocationSource } from '../types/Reminder';
@@ -201,7 +201,15 @@ export function CreateReminderScreen(props: Props) {
     }
   }, [searchQuery]);
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSave = async () => {
+    // Guard against double taps while the GPS fix and the write are in flight.
+    if (isSaving) {
+      return;
+    }
+    setIsSaving(true);
+
     // Skip lat/lon validation when not yet available (geolocation pending).
     const validation = validateReminderPayload(
       title,
@@ -212,6 +220,7 @@ export function CreateReminderScreen(props: Props) {
     );
     if (!validation.valid) {
       setValidationErrors(validation.errors.map((e) => e.message));
+      setIsSaving(false);
       return;
     }
     setValidationErrors([]);
@@ -280,6 +289,8 @@ export function CreateReminderScreen(props: Props) {
       navigation.goBack();
     } catch (err) {
       console.error('[CreateReminderScreen] Save failed:', err);
+      setValidationErrors(['Could not save the reminder. Please try again.']);
+      setIsSaving(false);
     }
   };
 
@@ -358,7 +369,7 @@ export function CreateReminderScreen(props: Props) {
 
               {/* Mode toggle */}
               <View style={styles.modeToggle}>
-                <Pressable
+                <PressableArea
                   testID="createReminder.location.current.button"
                   accessibilityLabel="Use current location"
                   accessibilityRole="button"
@@ -374,8 +385,8 @@ export function CreateReminderScreen(props: Props) {
                   <Text style={styles.modeButtonText}>
                     Current Location
                   </Text>
-                </Pressable>
-                <Pressable
+                </PressableArea>
+                <PressableArea
                   testID="createReminder.location.pin.button"
                   accessibilityLabel="Drop pin on map"
                   accessibilityRole="button"
@@ -389,8 +400,8 @@ export function CreateReminderScreen(props: Props) {
                   }}
                 >
                   <Text style={styles.modeButtonText}>Drop Pin</Text>
-                </Pressable>
-                <Pressable
+                </PressableArea>
+                <PressableArea
                   testID="createReminder.location.search.button"
                   accessibilityLabel="Search address"
                   accessibilityRole="button"
@@ -404,7 +415,7 @@ export function CreateReminderScreen(props: Props) {
                   }}
                 >
                   <Text style={styles.modeButtonText}>Search</Text>
-                </Pressable>
+                </PressableArea>
               </View>
 
               {/* Inline map for pin mode */}
@@ -430,7 +441,7 @@ export function CreateReminderScreen(props: Props) {
 
               {/* Current location button (non-pin mode) */}
               {locationMode === 'current' && (
-                <Pressable
+                <PressableArea
                   testID="createReminder.location.getCurrent.button"
                   accessibilityLabel="Get current location"
                   style={[styles.getLocationButton, isGettingLocation && styles.getLocationButtonDisabled]}
@@ -440,7 +451,7 @@ export function CreateReminderScreen(props: Props) {
                   <Text style={styles.getLocationButtonText}>
                     {isGettingLocation ? 'Getting location...' : 'Get Current Location'}
                   </Text>
-                </Pressable>
+                </PressableArea>
               )}
 
               {/* Address search mode */}
@@ -455,7 +466,7 @@ export function CreateReminderScreen(props: Props) {
                     placeholder="e.g. 123 Main St, Springfield"
                     placeholderTextColor={Colors.textMuted}
                   />
-                  <Pressable
+                  <PressableArea
                     testID="createReminder.location.search.submit"
                     accessibilityLabel="Search address"
                     accessibilityRole="button"
@@ -466,7 +477,7 @@ export function CreateReminderScreen(props: Props) {
                     <Text style={styles.getLocationButtonText}>
                       {isSearching ? 'Searching...' : 'Search Address'}
                     </Text>
-                  </Pressable>
+                  </PressableArea>
                   {searchError ? (
                     <Text style={styles.errorText}>{searchError}</Text>
                   ) : null}
@@ -504,7 +515,7 @@ export function CreateReminderScreen(props: Props) {
 
             {/* Bottom action buttons — pinned to bottom with padding */}
             <View style={styles.buttonRow}>
-              <Pressable
+              <PressableArea
                 testID="createReminder.cancel.button"
                 accessibilityLabel="Cancel"
                 accessibilityRole="button"
@@ -512,16 +523,16 @@ export function CreateReminderScreen(props: Props) {
                 style={[styles.button, styles.cancelButton]}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
+              </PressableArea>
+              <PrimaryActionButton
                 testID="createReminder.save.button"
                 accessibilityLabel="Save reminder"
-                accessibilityRole="button"
+                label={editing ? 'Save changes' : 'Save reminder'}
+                loadingLabel="Saving…"
+                loading={isSaving}
+                disabled={isSaving}
                 onPress={handleSave}
-                style={[styles.button, styles.saveButton]}
-              >
-                <Text style={styles.saveButtonText}>Save</Text>
-              </Pressable>
+              />
             </View>
 
             {/* Spacer: ensures buttons stay above keyboard */}
@@ -657,14 +668,6 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     ...Typography.body,
     color: Colors.textSecondary,
-  },
-  saveButton: {
-    backgroundColor: Colors.signalRed,
-  },
-  saveButtonText: {
-    ...Typography.body,
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
   bottomSpacer: {
     height: 48,

@@ -1,11 +1,12 @@
 // Home screen — list of reminders from the store, detail navigation, search, and status filter.
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, TextInput, FlatList, StyleSheet, SafeAreaView, Pressable, Alert } from "react-native";
+import { View, Text, TextInput, FlatList, StyleSheet, SafeAreaView, Alert } from "react-native";
 import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
 import { ReminderCard } from "../components/ReminderCard";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { Colors, Spacing, Typography, BorderRadius } from "../theme";
+import { PressableArea } from "../components/PressableArea";
 import { store, getStoreVersion, storeReady } from "../stores/reminderStore";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -124,7 +125,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
     <SafeArea style={styles.container} edges={["left", "right"]}>
       <View style={styles.header}>
         {/* Title lives in the navigator header — no in-screen heading. */}
-        <Pressable
+        <PressableArea
           testID="home.createReminder.button"
           accessibilityLabel="Create new reminder"
           accessibilityRole="button"
@@ -132,7 +133,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
           style={styles.addButton}
         >
           <Text style={styles.addButtonText}>+</Text>
-        </Pressable>
+        </PressableArea>
       </View>
 
       {/* Search bar */}
@@ -152,7 +153,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
       {/* Status filter segmented control */}
       <View style={styles.filterRow}>
         {FILTER_OPTIONS.map(opt => (
-          <Pressable
+          <PressableArea
             key={opt.label}
             testID={`reminders.filter.${opt.label.toLowerCase()}`}
             accessibilityLabel={`Filter: ${opt.label}`}
@@ -164,7 +165,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
             <Text style={[styles.filterButtonText, statusFilter === opt.status && styles.filterButtonTextActive]}>
               {opt.label}
             </Text>
-          </Pressable>
+          </PressableArea>
         ))}
       </View>
 

@@ -2,8 +2,9 @@
 // Used in Settings and Onboarding screens to educate users about notification permissions.
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Linking } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
 import { Colors, Spacing, Typography, BorderRadius } from '../theme';
+import { PressableArea } from './PressableArea';
 import { notificationService, AuthorizationStatus } from '../services/notificationService';
 
 interface NotificationPermissionBannerProps {
@@ -59,14 +60,14 @@ export function NotificationPermissionBanner({
         <Text style={styles.bannerText}>
           Notifications are disabled. Open system settings to enable them.
         </Text>
-        <Pressable
+        <PressableArea
           testID="notification-permission-banner.openSettings"
           accessibilityRole="button"
           onPress={handleOpenSettings}
           style={[styles.actionButton, styles.glassButton]}
         >
           <Text style={styles.actionButtonText}>Open Settings</Text>
-        </Pressable>
+        </PressableArea>
       </View>
     );
   }
@@ -77,17 +78,17 @@ export function NotificationPermissionBanner({
       <Text style={styles.bannerText}>
         We need permission to send reminders when you arrive at locations.
       </Text>
-      <Pressable
+      <PressableArea
         testID="notification-permission-banner.request"
         accessibilityRole="button"
         onPress={handleRequestPermission}
         disabled={loading}
-        style={[styles.actionButton, styles.primaryButton, loading && styles.disabled]}
+        style={[styles.actionButton, styles.primaryButton]}
       >
         <Text style={styles.actionButtonText}>
           {loading ? 'Requesting...' : 'Enable Notifications'}
         </Text>
-      </Pressable>
+      </PressableArea>
     </View>
   );
 }
@@ -121,8 +122,5 @@ const styles = StyleSheet.create({
   actionButtonText: {
     ...Typography.caption,
     color: '#FFFFFF',
-  },
-  disabled: {
-    opacity: 0.5,
   },
 });

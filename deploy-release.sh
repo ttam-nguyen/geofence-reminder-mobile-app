@@ -40,16 +40,26 @@ fi
 cd ..
 
 echo "=== Step 3: Install as update (keeps app data) ==="
-# `adb install -r` replaces the APK in place and preserves the app's data
-# directory (SQLite reminders, AsyncStorage flags, permissions).
-if adb install -r "$ROOT/android/$APK"; then
+# Check for a device first. Without this, a flaky USB connection looks like an install failure
+# and falls through to the uninstall branch, which would destroy user data for no reason.
+if ! adb get-state >/dev/null 2>&1; then
+  echo "ERROR: no device attached — nothing installed, no data touched." >&2
+  exit 1
+fi
+
+INSTALL_OUTPUT=$(adb install -r "$ROOT/android/$APK" 2>&1 || true)
+echo "$INSTALL_OUTPUT"
+
+if echo "$INSTALL_OUTPUT" | grep -q "Success"; then
   echo "Updated in place — app data preserved."
-else
-  echo "Update install failed (signature mismatch, version downgrade, or corrupt package)."
+elif echo "$INSTALL_OUTPUT" | grep -qiE "signatures do not match|INSTALL_FAILED_UPDATE_INCOMPATIBLE|INSTALL_FAILED_VERSION_DOWNGRADE|INSTALL_PARSE_FAILED|INSTALL_FAILED_INVALID_APK"; then
   echo "=== Step 4: Fallback — uninstall, then fresh install ==="
   echo "WARNING: uninstall drops the app's data (reminders and saved settings)."
   adb uninstall com.gpsreminder || true
   adb install "$ROOT/android/$APK"
+else
+  echo "ERROR: install failed for a device/transport reason. Nothing was uninstalled; data intact." >&2
+  exit 1
 fi
 
 echo "=== Step 5: Verify the installed build ==="
