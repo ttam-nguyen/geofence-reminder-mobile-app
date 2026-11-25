@@ -40,6 +40,15 @@ import type { LocationSample } from '../types/location';
 
 const GeofencingModule = NativeModules.GeofencingModule as any;
 
+/**
+ * True when the native module is present. JS can run without it (a JS-only reload, a build where
+ * the module was not compiled, unit tests); every native call is guarded so a missing module
+ * degrades to "geofencing unavailable" instead of throwing inside a store save.
+ */
+function hasNativeGeofencing(): boolean {
+  return GeofencingModule != null;
+}
+
 const GEOFENCE_QUEUED_EVENT = 'geofenceEventQueued';
 
 export const TRANSITION_ENTER = 1;
@@ -311,6 +320,13 @@ export async function registerReminderGeofence(
     ReminderStatus.WAITING_FOR_EXIT,
     ReminderStatus.ARRIVAL_PENDING,
   ];
+  if (!hasNativeGeofencing()) {
+    log.warn('geofence', 'Native GeofencingModule unavailable — registration skipped', {
+      reminderId: reminder.id,
+    });
+    return;
+  }
+
   if (!registrableStatuses.includes(reminder.status)) {
     log.debug('geofence', 'Skip registration — reminder is not active', {
       reminderId: reminder.id,
@@ -370,6 +386,11 @@ export async function registerReminderGeofence(
 
 /** Unregister a native geofence. */
 export async function unregisterReminderGeofence(reminderId: string): Promise<void> {
+  if (!hasNativeGeofencing()) {
+    registeredGeofences.delete(reminderId);
+    return;
+  }
+
   try {
     await GeofencingModule.unregisterGeofence(reminderId);
     registeredGeofences.delete(reminderId);
@@ -398,6 +419,15 @@ export async function registerAllActiveGeofences(): Promise<void> {
 }
 
 export async function listRegisteredGeofences(): Promise<GeofenceInfo[]> {
+  if (!hasNativeGeofencing()) {
+    return Array.from(registeredGeofences.values()).map(reminder => ({
+      reminderId: reminder.id,
+      latitude: reminder.latitude,
+      longitude: reminder.longitude,
+      radius: reminder.radiusMeters,
+    }));
+  }
+
   try {
     return await GeofencingModule.listRegisteredGeofences();
   } catch {
@@ -411,6 +441,10 @@ export async function listRegisteredGeofences(): Promise<GeofenceInfo[]> {
 }
 
 export async function getAuthorizationStatus(): Promise<string> {
+  if (!hasNativeGeofencing()) {
+    return 'unknown';
+  }
+
   try {
     return await GeofencingModule.getAuthorizationStatus();
   } catch {
@@ -488,6 +522,11 @@ export function drainNativeGeofenceEvents(): Promise<void> {
   if (drainInFlight) return drainInFlight;
 
   drainInFlight = (async () => {
+    if (!hasNativeGeofencing()) {
+      drainInFlight = null;
+      return;
+    }
+
     try {
       const events: NativeGeofenceEvent[] = await GeofencingModule.drainPendingGeofenceEvents();
       if (!events || events.length === 0) return;

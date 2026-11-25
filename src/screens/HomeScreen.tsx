@@ -1,9 +1,10 @@
 // Home screen — list of reminders from the store, detail navigation, search, and status filter.
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, TextInput, FlatList, StyleSheet, SafeAreaView, Alert } from "react-native";
+import { View, Text, TextInput, FlatList, StyleSheet, SafeAreaView, Alert, Platform } from "react-native";
 import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
 import { ReminderCard } from "../components/ReminderCard";
+import { Icon } from "../components/Icon";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { Colors, Spacing, Typography, BorderRadius } from "../theme";
 import { PressableArea } from "../components/PressableArea";
@@ -123,19 +124,6 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
 
   return (
     <SafeArea style={styles.container} edges={["left", "right"]}>
-      <View style={styles.header}>
-        {/* Title lives in the navigator header — no in-screen heading. */}
-        <PressableArea
-          testID="home.createReminder.button"
-          accessibilityLabel="Create new reminder"
-          accessibilityRole="button"
-          onPress={() => onNavigateToCreate()}
-          style={styles.addButton}
-        >
-          <Text style={styles.addButtonText}>+</Text>
-        </PressableArea>
-      </View>
-
       {/* Search bar */}
       <View style={styles.searchContainer}>
         <TextInput
@@ -182,6 +170,19 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
           </View>
         }
       />
+
+      {/* Create button floats in the lower half: reachable with one thumb, unlike a header icon. */}
+      <View style={styles.fabContainer} pointerEvents="box-none">
+        <PressableArea
+          testID="home.createReminder.button"
+          accessibilityLabel="Create new reminder"
+          accessibilityRole="button"
+          onPress={() => onNavigateToCreate()}
+          style={styles.fab}
+        >
+          <Icon name="plus" size={26} color="#FFFFFF" />
+        </PressableArea>
+      </View>
     </SafeArea>
   );
 }
@@ -191,26 +192,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: "row",
-    // Only the create button remains here; the screen title is in the navigator header.
-    justifyContent: "flex-end",
-    alignItems: "center",
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+  fabContainer: {
+    position: "absolute",
+    right: Spacing.md,
+    bottom: Spacing.lg,
+    alignItems: "flex-end",
   },
-  addButton: {
-    width: 44,
-    height: 44,
+  fab: {
+    width: 56,
+    height: 56,
     borderRadius: BorderRadius.pill,
     backgroundColor: Colors.signalRed,
-    justifyContent: "center",
     alignItems: "center",
-  },
-  addButtonText: {
-    color: "#FFFFFF",
-    fontSize: 24,
-    fontWeight: "300",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   searchContainer: {
     paddingHorizontal: Spacing.md,
@@ -254,6 +259,8 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: Spacing.md,
     gap: Spacing.sm,
+    // Room for the floating button so the last card is never covered.
+    paddingBottom: 56 + Spacing.lg * 2,
   },
   emptyState: {
     paddingVertical: Spacing.xxl,

@@ -18,6 +18,14 @@ import Geolocation from '@react-native-community/geolocation';
 import type { Region } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import { PressableArea, PrimaryActionButton } from "../components/PressableArea";
+import { Icon } from "../components/Icon";
+import {
+  listPlaces,
+  rememberPlace,
+  removePlace,
+  setPlaceSaved,
+  type SavedPlace,
+} from "../stores/placeStore";
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { Reminder, ReminderStatus, LocationSource } from '../types/Reminder';
@@ -72,6 +80,42 @@ export function CreateReminderScreen(props: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [places, setPlaces] = useState<SavedPlace[]>([]);
+
+  // Saved and recent places, shared by the search suggestions.
+  useEffect(() => {
+    listPlaces()
+      .then(setPlaces)
+      .catch(err => console.error('[CreateReminderScreen] Failed to load places:', err));
+  }, []);
+
+  const pickPlace = useCallback((place: SavedPlace) => {
+    setLocationMode('search');
+    setLatitude(place.latitude);
+    setLongitude(place.longitude);
+    setLocationName(place.name);
+    setMapRegion({
+      latitude: place.latitude,
+      longitude: place.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
+    rememberPlace({ name: place.name, latitude: place.latitude, longitude: place.longitude })
+      .then(setPlaces)
+      .catch(err => console.error('[CreateReminderScreen] Failed to remember place:', err));
+  }, []);
+
+  const togglePlaceSaved = useCallback((place: SavedPlace) => {
+    setPlaceSaved(place.id, !place.saved)
+      .then(setPlaces)
+      .catch(err => console.error('[CreateReminderScreen] Failed to update place:', err));
+  }, []);
+
+  const forgetPlace = useCallback((place: SavedPlace) => {
+    removePlace(place.id)
+      .then(setPlaces)
+      .catch(err => console.error('[CreateReminderScreen] Failed to remove place:', err));
+  }, []);
 
   // Ref to prevent duplicate geolocation calls between handleCurrentLocation and useEffect.
   const geolocationInProgress = useRef(false);
@@ -193,6 +237,13 @@ export function CreateReminderScreen(props: Props) {
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       });
+      rememberPlace({
+        name: result.displayName,
+        latitude: result.latitude,
+        longitude: result.longitude,
+      })
+        .then(setPlaces)
+        .catch(err => console.error('[CreateReminderScreen] Failed to remember place:', err));
     } catch (err) {
       console.error('[CreateReminderScreen] handleSearch error:', err);
       setSearchError('Search failed. Please try again.');
@@ -397,6 +448,29 @@ export function CreateReminderScreen(props: Props) {
                   onPress={() => {
                     setLocationMode('pin');
                     setPinCoordinate(null);
+                    // Open the preview where the user actually is, not at 0,0.
+                    if (mapRegion) {
+                      return;
+                    }
+                    if (latitude !== undefined && longitude !== undefined) {
+                      setMapRegion({
+                        latitude,
+                        longitude,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      });
+                      return;
+                    }
+                    getCurrentLocation().then(loc => {
+                      if (loc) {
+                        setMapRegion({
+                          latitude: loc.lat,
+                          longitude: loc.lon,
+                          latitudeDelta: 0.01,
+                          longitudeDelta: 0.01,
+                        });
+                      }
+                    });
                   }}
                 >
                   <Text style={styles.modeButtonText}>Drop Pin</Text>
@@ -481,6 +555,59 @@ export function CreateReminderScreen(props: Props) {
                   {searchError ? (
                     <Text style={styles.errorText}>{searchError}</Text>
                   ) : null}
+
+                  {places.length > 0 ? (
+                    <View style={styles.placesList}>
+                      <Text style={[Typography.caption, styles.placesHeading]}>
+                        Saved and recent places
+                      </Text>
+                      {places.map(place => (
+                        <View key={place.id} style={styles.placeRow}>
+                          <PressableArea
+                            testID={`createReminder.place.${place.id}`}
+                            accessibilityLabel={`Use ${place.name}`}
+                            accessibilityRole="button"
+                            onPress={() => pickPlace(place)}
+                            style={styles.placeMain}
+                          >
+                            <Icon
+                              name={place.saved ? "star" : "clock"}
+                              size={16}
+                              color={place.saved ? Colors.waitingAmber : Colors.textMuted}
+                            />
+                            <Text style={styles.placeName} numberOfLines={1}>
+                              {place.name}
+                            </Text>
+                          </PressableArea>
+                          <PressableArea
+                            testID={`createReminder.place.${place.id}.star`}
+                            accessibilityLabel={
+                              place.saved ? `Remove ${place.name} from saved` : `Save ${place.name}`
+                            }
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: place.saved }}
+                            onPress={() => togglePlaceSaved(place)}
+                            style={styles.placeAction}
+                          >
+                            <Icon
+                              name="star"
+                              size={16}
+                              color={place.saved ? Colors.waitingAmber : Colors.textMuted}
+                            />
+                          </PressableArea>
+                          <PressableArea
+                            testID={`createReminder.place.${place.id}.remove`}
+                            accessibilityLabel={`Remove ${place.name} from history`}
+                            accessibilityRole="button"
+                            onPress={() => forgetPlace(place)}
+                            style={styles.placeAction}
+                          >
+                            <Icon name="trash" size={16} color={Colors.textMuted} />
+                          </PressableArea>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
               )}
             </View>
@@ -545,6 +672,43 @@ export function CreateReminderScreen(props: Props) {
 }
 
 const styles = StyleSheet.create({
+  placesList: {
+    marginTop: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+    backgroundColor: Colors.surface,
+    overflow: 'hidden',
+  },
+  placesHeading: {
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  placeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.borderGlass,
+  },
+  placeMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: Spacing.sm,
+  },
+  placeName: {
+    ...Typography.bodySmall,
+    flex: 1,
+  },
+  placeAction: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,

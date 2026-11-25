@@ -1,11 +1,12 @@
 // Root navigation — bottom tabs with stack overlay for create/detail flows.
 
 import React from "react";
-import { Linking } from "react-native";
+import { Linking, Platform } from "react-native";
 import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
 import { setOnNotificationTap } from "../services/geofencingService";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Icon, type IconName } from "../components/Icon";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -54,6 +55,37 @@ const TAB_BAR_TOP_PADDING = Spacing.xs;
 /** Visible gap between the tab labels and the system navigation bar. */
 const TAB_BAR_BOTTOM_GAP = Spacing.md;
 
+/**
+ * Android draws the tab bar inside the window and reports the navigation inset inconsistently
+ * (often 0), so the height and gap are set explicitly there. iOS reports a real inset and React
+ * Navigation already adds it; overriding the height there produced too much padding, so iOS keeps
+ * the library's default geometry.
+ */
+function tabBarStyle(bottomInset: number) {
+  const base = {
+    backgroundColor: Colors.surface,
+    borderTopColor: Colors.borderGlass,
+    borderTopWidth: 1,
+  };
+
+  if (Platform.OS !== "android") {
+    return base;
+  }
+
+  return {
+    ...base,
+    height: TAB_BAR_CONTENT_HEIGHT + TAB_BAR_TOP_PADDING + bottomInset + TAB_BAR_BOTTOM_GAP,
+    paddingTop: TAB_BAR_TOP_PADDING,
+    paddingBottom: bottomInset + TAB_BAR_BOTTOM_GAP,
+  };
+}
+
+function tabBarIcon(name: IconName) {
+  return ({ color, size }: { color: string; size: number }) => (
+    <Icon name={name} size={size} color={color} />
+  );
+}
+
 function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList, "Main">) {
   const insets = useSafeAreaInsets();
 
@@ -70,16 +102,7 @@ function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList
       screenOptions={{
         tabBarActiveTintColor: Colors.signalRed,
         tabBarInactiveTintColor: Colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.borderGlass,
-          borderTopWidth: 1,
-          // Explicit height: when `height` is set, React Navigation stops adding the bottom
-          // inset itself, so both height and padding must account for it.
-          height: TAB_BAR_CONTENT_HEIGHT + TAB_BAR_TOP_PADDING + insets.bottom + TAB_BAR_BOTTOM_GAP,
-          paddingTop: TAB_BAR_TOP_PADDING,
-          paddingBottom: insets.bottom + TAB_BAR_BOTTOM_GAP,
-        },
+        tabBarStyle: tabBarStyle(insets.bottom),
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "500",
@@ -91,7 +114,10 @@ function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList
         headerTitleStyle: Typography.h3,
       }}
     >
-      <Tab.Screen name="Home" options={{ title: "Reminders", tabBarLabel: "Home" }}>
+      <Tab.Screen
+        name="Home"
+        options={{ title: "Reminders", tabBarLabel: "Home", tabBarIcon: tabBarIcon("house") }}
+      >
         {() => (
           <HomeScreen
             onNavigateToCreate={navigateToCreate}
@@ -99,8 +125,16 @@ function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList
           />
         )}
       </Tab.Screen>
-      <Tab.Screen name="Map" component={MapScreen} options={{ title: "Map", tabBarLabel: "Map" }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings", tabBarLabel: "Settings" }} />
+      <Tab.Screen
+        name="Map"
+        component={MapScreen}
+        options={{ title: "Map", tabBarLabel: "Map", tabBarIcon: tabBarIcon("map") }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ title: "Settings", tabBarLabel: "Settings", tabBarIcon: tabBarIcon("settings") }}
+      />
     </Tab.Navigator>
   );
 }

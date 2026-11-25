@@ -1,7 +1,7 @@
 // Settings screen — full settings with notifications, permissions, privacy, and about sections.
 
 import React, { useState, useCallback, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Linking, PermissionsAndroid, Platform, Share } from "react-native";
+import { View, Text, StyleSheet, ScrollView, PermissionsAndroid, Platform, Share } from "react-native";
 import { SafeAreaView as SafeArea } from "react-native-safe-area-context";
 import { Colors, Spacing, Typography, BorderRadius, PlatformConstants } from "../theme";
 import { PressableArea } from "../components/PressableArea";
@@ -17,6 +17,7 @@ import { DeveloperGeofenceControls, isDeveloperMode } from "../components/Develo
 import { APP_VERSION } from "../config/version";
 import { clearLogs, exportLogs, log } from "../services/logger";
 import { requestBackgroundLocationPermission } from "../services/geofencingService";
+import { openAppSettings } from "../utils/appSettings";
 import { useFocusEffect } from "@react-navigation/native";
 
 type SwitchProps = {
@@ -78,7 +79,8 @@ export function SettingsScreen() {
   }, [refreshPermissionStatus]);
 
   const openSystemSettings = useCallback(async () => {
-    await Linking.openSettings();
+    // iOS: jumps to the location permission list; Android: the app's details page.
+    await openAppSettings('settings:location');
   }, []);
 
   const refreshBackgroundLocation = useCallback(async () => {

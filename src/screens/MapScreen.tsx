@@ -9,6 +9,7 @@ import {
   Platform,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type ViewStyle,
 } from "react-native";
@@ -21,6 +22,8 @@ import { Colors, Spacing, Typography, BorderRadius } from "../theme";
 import { store, storeReady } from "../stores/reminderStore";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { ReminderCard } from "../components/ReminderCard";
+import { PressableArea } from "../components/PressableArea";
+import { Icon } from "../components/Icon";
 import { haversineDistance } from "../models/haversine";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 
@@ -85,7 +88,6 @@ const METERS_PER_DEGREE_LAT = 111320;
 /** Radius circle should cover roughly a third of the visible map height. */
 const RADIUS_VIEWPORT_SHARE = 0.35;
 
-const HEADER_HEIGHT = 48;
 const DRAG_HANDLE_HEIGHT = 32;
 
 function clamp(value: number, min: number, max: number): number {
@@ -102,6 +104,7 @@ export function MapScreen() {
   const insets = useSafeAreaInsets();
 
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [rowLayouts, setRowLayouts] = useState<Record<string, RowLayout>>({});
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -171,7 +174,11 @@ export function MapScreen() {
   );
 
   const visibleReminders = useMemo(() => {
-    const items = reminders.filter(r => r.status !== ReminderStatus.DELETED);
+    // Triggered reminders are finished work: no marker, no row. They stay on the Home list.
+    const items = reminders.filter(
+      reminder =>
+        reminder.status !== ReminderStatus.DELETED && reminder.status !== ReminderStatus.TRIGGERED,
+    );
     if (!userLocation) {
       return items;
     }
@@ -181,6 +188,18 @@ export function MapScreen() {
         haversineDistance(userLocation.latitude, userLocation.longitude, b.latitude, b.longitude),
     );
   }, [reminders, userLocation]);
+
+  const searchedReminders = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return visibleReminders;
+    }
+    return visibleReminders.filter(reminder =>
+      `${reminder.title} ${reminder.locationName ?? ""} ${reminder.description ?? ""}`
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [visibleReminders, searchQuery]);
 
   const initialRegion = useMemo(() => {
     const first = visibleReminders[0];
@@ -277,7 +296,7 @@ export function MapScreen() {
 
     mapRef.current?.fitToCoordinates(coordinates, {
       edgePadding: {
-        top: insets.top + HEADER_HEIGHT + Spacing.md,
+        top: insets.top + Spacing.md,
         right: Spacing.lg,
         bottom: sheetHeightPx + Spacing.md + Spacing.lg,
         left: Spacing.lg,
@@ -298,7 +317,7 @@ export function MapScreen() {
   }
 
   const handleCardPress = (id: string) => {
-    const reminder = visibleReminders.find(r => r.id === id);
+    const reminder = searchedReminders.find(r => r.id === id);
     if (!reminder) {
       return;
     }
@@ -374,14 +393,14 @@ export function MapScreen() {
       return undefined;
     }
 
-    const offsets = visibleReminders
+    const offsets = searchedReminders
       .map(item => rowLayouts[item.id])
       .filter((layout): layout is RowLayout => Boolean(layout))
       .map(layout => Math.max(0, layout.y + layout.height / 2 - listViewportHeight / 2));
 
     // react-native requires ascending snap offsets.
     return offsets.sort((a, b) => a - b);
-  }, [visibleReminders, rowLayouts, listViewportHeight]);
+  }, [searchedReminders, rowLayouts, listViewportHeight]);
 
   // Padding so the first and last cards can also reach the centre slot.
   const listPaddingVertical = useMemo(
@@ -389,7 +408,7 @@ export function MapScreen() {
     [listViewportHeight],
   );
 
-  const activeCount = visibleReminders.length;
+  const activeCount = searchedReminders.length;
 
   return (
     <View style={styles.root} onLayout={handleRootLayout}>
@@ -410,15 +429,6 @@ export function MapScreen() {
           />
         ))}
       </MapView>
-
-      <View style={[styles.header, { top: insets.top + Spacing.sm }]} accessibilityRole="header" pointerEvents="none">
-        {/* The screen title is in the navigator header; this chip only reports the count. */}
-        <View style={styles.countPill}>
-          <Text style={Typography.caption}>
-            {activeCount} {activeCount === 1 ? "reminder" : "reminders"}
-          </Text>
-        </View>
-      </View>
 
       <Animated.View
         style={[
@@ -453,9 +463,41 @@ export function MapScreen() {
           </View>
         </View>
 
-        {visibleReminders.length === 0 ? (
+        <View style={styles.sheetHeader}>
+          <View style={styles.searchField}>
+            <Icon name="search" size={16} color={Colors.textMuted} />
+            <TextInput
+              testID="map.search.input"
+              accessibilityLabel="Search reminders on the map"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search reminders…"
+              placeholderTextColor={Colors.textMuted}
+              style={styles.searchInput}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 ? (
+              <PressableArea
+                testID="map.search.clear"
+                accessibilityLabel="Clear search"
+                accessibilityRole="button"
+                onPress={() => setSearchQuery("")}
+                style={styles.clearButton}
+              >
+                <Icon name="close" size={14} color={Colors.textMuted} />
+              </PressableArea>
+            ) : null}
+          </View>
+          <Text style={[Typography.caption, styles.sheetCount]}>
+            {activeCount} nearby
+          </Text>
+        </View>
+
+        {searchedReminders.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={[Typography.bodySmall, styles.emptyText]}>No reminders to display.</Text>
+            <Text style={[Typography.bodySmall, styles.emptyText]}>
+              {searchQuery ? `No reminders match “${searchQuery}”.` : "No reminders to display."}
+            </Text>
           </View>
         ) : (
           <Animated.ScrollView
@@ -469,9 +511,9 @@ export function MapScreen() {
             overScrollMode="never"
             onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
             scrollEventThrottle={16}
-            showsVerticalScrollIndicator={visibleReminders.length > 1}
+            showsVerticalScrollIndicator={searchedReminders.length > 1}
           >
-            {visibleReminders.map(item => (
+            {searchedReminders.map(item => (
               <Animated.View
                 key={item.id}
                 onLayout={event => handleRowLayout(item.id, event)}
@@ -492,25 +534,40 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    position: "absolute",
-    left: Spacing.md,
-    right: Spacing.md,
-    height: HEADER_HEIGHT,
+  sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.pill,
-    backgroundColor: Colors.surfaceGlass,
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  searchField: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    minHeight: 40,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.borderGlass,
   },
-  countPill: {
-    paddingHorizontal: Spacing.sm,
+  searchInput: {
+    flex: 1,
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
     paddingVertical: Spacing.xs,
+  },
+  clearButton: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: BorderRadius.pill,
-    backgroundColor: Colors.surfaceGlassStrong,
+  },
+  sheetCount: {
+    color: Colors.textMuted,
   },
   sheet: {
     position: "absolute",
