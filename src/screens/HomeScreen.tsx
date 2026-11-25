@@ -77,12 +77,49 @@ export function compareReminders(
   return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: "base" });
 }
 
+interface CollapsibleGroupProps {
+  title: string;
+  count: number;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}
+
+/** A finished-work group: header with a count, closed by default, one tap to reveal the cards. */
+function CollapsibleGroup({ title, count, expanded, onToggle, children }: CollapsibleGroupProps) {
+  if (count === 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.group}>
+      <PressableArea
+        testID={`home.group.${title.toLowerCase()}`}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}, ${count} ${count === 1 ? "reminder" : "reminders"}`}
+        accessibilityState={{ expanded }}
+        onPress={onToggle}
+        style={styles.groupHeader}
+      >
+        <Icon name={expanded ? "chevron-down" : "chevron-right"} size={16} color={Colors.textMuted} />
+        <Text style={Typography.bodySmall}>{title}</Text>
+        <Text style={styles.groupCount}>{count}</Text>
+      </PressableArea>
+
+      {expanded ? <View style={styles.groupBody}>{children}</View> : null}
+    </View>
+  );
+}
+
 export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScreenProps) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ReminderStatus | null>(null);
   const [userLocation, setUserLocation] = useState<SortContext | null>(null);
+  // Finished work is grouped and closed by default, so the list shows what needs attention.
+  const [showTriggered, setShowTriggered] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -130,25 +167,54 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
   };
 
   // Derive filtered reminders from search + status filter.
-  const filteredReminders = useMemo(() => {
-    let items = reminders;
-    if (statusFilter) {
+  /** Search + status pill applied to every group. */
+  const matchingReminders = useMemo(() => {
+    let items = reminders.filter(r => r.status !== ReminderStatus.DELETED);
+
+    if (statusFilter === ReminderStatus.TRIGGERED) {
+      items = items.filter(r => r.status === ReminderStatus.TRIGGERED);
+    } else if (statusFilter === ReminderStatus.COMPLETED) {
+      items = items.filter(r => r.status === ReminderStatus.COMPLETED);
+    } else if (statusFilter) {
       items = items.filter(r => r.status === statusFilter);
     }
+
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       items = items.filter(
         r => r.title.toLowerCase().includes(q) || (r.description?.toLowerCase().includes(q) ?? false),
       );
     }
+
     return [...items].sort((a, b) => compareReminders(a, b, userLocation));
   }, [reminders, statusFilter, searchQuery, userLocation]);
+
+  /** Everything the user still has to act on. */
+  const activeReminders = useMemo(
+    () =>
+      matchingReminders.filter(
+        reminder =>
+          reminder.status !== ReminderStatus.TRIGGERED &&
+          reminder.status !== ReminderStatus.COMPLETED,
+      ),
+    [matchingReminders],
+  );
+
+  const triggeredReminders = useMemo(
+    () => matchingReminders.filter(reminder => reminder.status === ReminderStatus.TRIGGERED),
+    [matchingReminders],
+  );
+
+  const completedReminders = useMemo(
+    () => matchingReminders.filter(reminder => reminder.status === ReminderStatus.COMPLETED),
+    [matchingReminders],
+  );
 
   const getEmptyMessage = (): string => {
     if (reminders.length === 0) {
       return "No reminders yet. Tap + to create one.";
     }
-    if (filteredReminders.length === 0) {
+    if (matchingReminders.length === 0) {
       return statusFilter ? "No reminders match the selected filter." : "No reminders match your search.";
     }
     return "";
@@ -228,16 +294,54 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
       </View>
 
       <FlatList
-        data={filteredReminders}
+        data={activeReminders}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <ReminderCard reminder={item} onPress={handleCardPress} onOverflowPress={handleOverflow} />
         )}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={Typography.bodySmall}>{getEmptyMessage()}</Text>
+        ListFooterComponent={
+          <View>
+            <CollapsibleGroup
+              title="Triggered"
+              count={triggeredReminders.length}
+              expanded={showTriggered}
+              onToggle={() => setShowTriggered(value => !value)}
+            >
+              {triggeredReminders.map(reminder => (
+                <ReminderCard
+                  key={reminder.id}
+                  reminder={reminder}
+                  onPress={handleCardPress}
+                  onOverflowPress={handleOverflow}
+                />
+              ))}
+            </CollapsibleGroup>
+
+            <CollapsibleGroup
+              title="Completed"
+              count={completedReminders.length}
+              expanded={showCompleted}
+              onToggle={() => setShowCompleted(value => !value)}
+            >
+              {completedReminders.map(reminder => (
+                <ReminderCard
+                  key={reminder.id}
+                  reminder={reminder}
+                  onPress={handleCardPress}
+                  onOverflowPress={handleOverflow}
+                />
+              ))}
+            </CollapsibleGroup>
           </View>
+        }
+        ListEmptyComponent={
+          // Only claim "nothing here" when the collapsed groups are empty too.
+          matchingReminders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={Typography.bodySmall}>{getEmptyMessage()}</Text>
+            </View>
+          ) : undefined
         }
       />
 
@@ -331,6 +435,24 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     // Room for the floating button so the last card is never covered.
     paddingBottom: 56 + Spacing.lg * 2,
+  },
+  group: {
+    marginTop: Spacing.md,
+  },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    minHeight: 44,
+    paddingHorizontal: Spacing.xs,
+  },
+  groupCount: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+  },
+  groupBody: {
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
   },
   emptyState: {
     paddingVertical: Spacing.xxl,

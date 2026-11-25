@@ -83,15 +83,20 @@ const SHEET_SIDE_INSET_RATIO = 0.15; // 70% width = 7/10 of the screen
  */
 const MIN_ROW_OPACITY = 0.28;
 const MIN_ROW_SCALE = 0.95;
-/** Rough card height used to size the top/bottom padding that lets edges centre. */
-const ROW_CENTER_REFERENCE_HEIGHT = 88;
+/**
+ * Where the focused card's centre sits, as a fraction of the list height. Centring the card in
+ * the whole viewport used to be done with a large content padding, but padding that changes with
+ * the measured viewport re-runs layout and Yoga squashed every row to ~42 dp, so the cards drew
+ * over each other. A focus line near the top needs no extra space at all.
+ */
+const FOCUS_LINE_RATIO = 0.25;
 
 /**
- * Vertical gap between reminder cards in the sheet.
- * 0 = cards stack flush with each other. Try Spacing.xs (4) or Spacing.sm (8)
- * if they look too tight — this is the single knob for card spacing.
+ * Vertical gap between cards in the sheet. This is the single knob for card spacing.
+ * 0 made adjacent glass cards render flush and read as one overlapping block, so the default is
+ * a real gap; Spacing.xs (4) or Spacing.lg (24) are the other sensible values.
  */
-const ROW_GAP = 0;
+const ROW_GAP = Spacing.sm;
 
 /** Zoom used when only a single reminder exists (fit-to-bounds cannot zoom). */
 const SINGLE_MARKER_DELTA = 0.02;
@@ -522,6 +527,20 @@ export function MapScreen() {
 
   // Rows are styled by distance from the snap position at the top of the sheet, never by distance
   // to an edge, so no scroll position can render every visible row at zero opacity.
+  /** Height of the scrollable content, derived from the rows that were actually measured. */
+  const listContentHeight = useMemo(() => {
+    const layouts = activeIds
+      .map(id => rowLayouts[id])
+      .filter((layout): layout is RowLayout => Boolean(layout));
+    if (layouts.length === 0) {
+      return 0;
+    }
+    return Math.max(...layouts.map(layout => layout.y + layout.height));
+  }, [activeIds, rowLayouts]);
+
+  const maxScroll = Math.max(0, listContentHeight - listViewportHeight);
+  const focusLine = listViewportHeight * FOCUS_LINE_RATIO;
+
   // Rows fade in and out by their distance from the viewport centre, so scrolling moves a card
   // through focus instead of everything staying dim.
   const rowAnimatedStyle = (id: string): Animated.WithAnimatedValue<ViewStyle> => {
@@ -530,8 +549,8 @@ export function MapScreen() {
       return { opacity: 1, transform: [{ scale: 1 }] };
     }
 
-    // Scroll offset at which this row's centre lines up with the viewport centre.
-    const centerScrollY = layout.y + layout.height / 2 - listViewportHeight / 2;
+    // Scroll offset at which this row's centre reaches the focus line.
+    const centerScrollY = clamp(layout.y + layout.height / 2 - focusLine, 0, maxScroll);
     // Distance over which a row goes from full focus to the ghosted peek state.
     const focusBand = Math.max(layout.height * 0.85, listViewportHeight * 0.45);
 
@@ -560,21 +579,12 @@ export function MapScreen() {
     const offsets = activeIds
       .map(id => rowLayouts[id])
       .filter((layout): layout is RowLayout => Boolean(layout))
-      .map(layout => Math.max(0, layout.y + layout.height / 2 - listViewportHeight / 2));
+      .map(layout => clamp(layout.y + layout.height / 2 - focusLine, 0, maxScroll));
 
     // react-native requires ascending snap offsets.
-    return offsets.sort((a, b) => a - b);
-  }, [activeIds, rowLayouts, listViewportHeight]);
+    return [...new Set(offsets)].sort((a, b) => a - b);
+  }, [activeIds, rowLayouts, focusLine, maxScroll]);
 
-  // Centring padding only matters when there is something to scroll between. With one result it
-  // just opened a void under the header.
-  const listPaddingVertical = useMemo(
-    () =>
-      activeIds.length > 1
-        ? Math.max(Spacing.sm, (listViewportHeight - ROW_CENTER_REFERENCE_HEIGHT) / 2)
-        : Spacing.sm,
-    [listViewportHeight, activeIds.length],
-  );
 
   const activeCount = searchedReminders.length;
 
@@ -706,7 +716,7 @@ export function MapScreen() {
         ) : (
           <Animated.ScrollView
             style={styles.list}
-            contentContainerStyle={[styles.listContent, { paddingVertical: listPaddingVertical }]}
+            contentContainerStyle={styles.listContent}
             snapToOffsets={snapOffsets}
             decelerationRate="fast"
             // No rubber-band past the ends, so a gesture cannot park in empty space.
@@ -1060,8 +1070,13 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
   },
   row: {
+    // Rows must never be compressed: a squashed row keeps its children and they draw over the
+    // next card. The cause of that was the viewport-derived content padding, which is gone; this
+    // stays as a guard.
+    flexShrink: 0,
     marginBottom: ROW_GAP,
   },
   emptyState: {

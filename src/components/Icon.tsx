@@ -22,6 +22,8 @@ const SOURCES = {
   clock: require('../assets/icons/clock.png'),
   trash: require('../assets/icons/trash-2.png'),
   pencil: require('../assets/icons/pencil.png'),
+  'chevron-down': require('../assets/icons/chevron-down.png'),
+  'chevron-right': require('../assets/icons/chevron-right.png'),
   plus: require('../assets/icons/plus.png'),
   check: require('../assets/icons/check.png'),
   close: require('../assets/icons/x.png'),
