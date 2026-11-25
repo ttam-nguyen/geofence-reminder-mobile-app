@@ -189,6 +189,8 @@ Tasks:
 
 **Gate 8:** Real-device matrix passes. Simulator success alone is insufficient. Document OS-dependent limitations and observed event delays.
 
+**Status: Android verified on physical device (2026-11-24); iOS blocked.** Observed on Android: geofence registration with `ENTER | EXIT | DWELL`, transitions persisted natively and drained by JS (an EXIT that fired 84 minutes earlier was applied on next launch), arrival notification delivered with the app closed, and exactly one notification per reminder. Android DWELL is the primary arrival signal, recorded in `DECISIONS.md` 2026-11-24. iOS cannot be built on this machine (K-014) and there is no iOS device available (K-018, K-021), so iOS remains unverified rather than claimed. Remaining before Gate 8 is fully closed: reproductions of ARR-04 and ARR-06 on device, and the deferred Phase 3 accessibility/visual pass.
+
 ## Phase 9 — Maestro E2E and regression
 
 Only start after the UI and stable test IDs are in place.

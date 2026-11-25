@@ -188,3 +188,15 @@ The original `reference/spec.md` is preserved unmodified for traceability. The f
 - Unit tests created: 15 tests for geofencingService API surface (initGeofencingService, registerReminderGeofence, unregisterReminderGeofence, callbacks, constants, candidates, clearAllGeofences, registerAllActiveGeofences, processLocationSample). All PASS.
 - Full test suite: 12/13 suites pass, 191 tests (pre-existing App.test.tsx failure unrelated).
 - Remaining: physical device validation (all tests in the matrix below).
+
+### 2026-11-24 — Android DWELL is the primary arrival signal
+
+`docs/DEVELOPMENT_PLAN.md` (Phase 8) states: "Android native dwell can be used as a supporting signal, not as a substitute for speed validation." Real-device testing showed that rule cannot hold for the closed-app case.
+
+**What the tests showed:** with the app closed, JavaScript does not run, so nothing can accumulate a 120 s stationary timer. The only arrival signal Android can deliver in that state is the geofence transition from Google Play Services. Our own logs confirmed both halves: a transition that happened 84 minutes before the app was opened was still delivered later from the persisted queue, and a `DWELL` received while backgrounded produced exactly one notification.
+
+**Decision:** Android `DWELL` (loitering delay = 120 s, the same duration as the stationary requirement) triggers arrival on its own. The JS speed validation (`< 0.89408 m/s` for 120 s) is kept as a foreground supplement and as the iOS path, and its verdicts are logged so a "kept walking" reset is distinguishable from "sampling stopped".
+
+**Status gating:** DWELL only notifies when the reminder's status allows it (`ARMED` or `ARRIVAL_PENDING`). The rule is cached with the geofence registration (`notifyOnDwell`) because the native receiver may run while JS is dead, and an entry that cannot prove otherwise fails closed. This is what prevents a `WAITING_FOR_EXIT` reminder (created while already inside the radius) from alerting.
+
+**Consequence to keep in mind:** the two paths are not equivalent. DWELL is presence-based, so a user who walks continuously inside the 200 m radius still qualifies; the JS path does not. Documented in `tracking/KNOWN_ISSUES.md` as an observed platform behaviour.
