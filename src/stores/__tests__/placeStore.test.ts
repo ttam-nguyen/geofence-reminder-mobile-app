@@ -4,6 +4,7 @@ import {
   MAX_PLACE_NAME_LENGTH,
   clearHistory,
   findPlaceNear,
+  findSavedPlaceNear,
   listPlaces,
   listSavedPlaces,
   rememberPlace,
@@ -96,6 +97,21 @@ describe('findPlaceNear', () => {
     const places = await rememberPlace(WORK);
 
     expect(findPlaceNear(places, HOME.latitude, HOME.longitude)).toBeUndefined();
+  });
+});
+
+describe('findSavedPlaceNear', () => {
+  it('finds a starred place at a coordinate, for card labels', async () => {
+    const [home] = await rememberPlace(HOME);
+    const places = await setPlaceSaved(home.id, true);
+
+    expect(findSavedPlaceNear(places, HOME.latitude, HOME.longitude)?.name).toBe('Home');
+  });
+
+  it('ignores an unstarred recent search', async () => {
+    const places = await rememberPlace(HOME);
+
+    expect(findSavedPlaceNear(places, HOME.latitude, HOME.longitude)).toBeUndefined();
   });
 });
 

@@ -103,6 +103,23 @@ export function findPlaceNear(
   );
 }
 
+/**
+ * The starred place at these coordinates, for card labels. Recent searches are excluded: their
+ * name is the raw geocoder string, which is longer than the full address the card avoids.
+ */
+export function findSavedPlaceNear(
+  places: SavedPlace[],
+  latitude: number,
+  longitude: number,
+  toleranceMeters = SAME_PLACE_METERS,
+): SavedPlace | undefined {
+  return places.find(
+    place =>
+      place.saved &&
+      haversineMeters(place.latitude, place.longitude, latitude, longitude) <= toleranceMeters,
+  );
+}
+
 /** Saved favourites first, then recents by most recently used. */
 export function sortPlaces(places: SavedPlace[]): SavedPlace[] {
   return [...places].sort((a, b) => {

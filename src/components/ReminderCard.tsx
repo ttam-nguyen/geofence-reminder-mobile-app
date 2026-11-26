@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 import { Colors, Spacing, Typography, BorderRadius } from "../theme";
 import { PressableArea } from "./PressableArea";
+import { locationLabelFor } from "../utils/addressLabel";
 
 interface ReminderCardProps {
   reminder: Reminder;
@@ -39,10 +40,13 @@ const statusColors: Record<ReminderStatus, string> = {
   [ReminderStatus.DELETED]: Colors.danger,
 };
 
-export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCardProps) {
+export function ReminderCard({ reminder, locationLabel, onPress, onOverflowPress }: ReminderCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const statusColor = statusColors[reminder.status] || Colors.textMuted;
   const isTriggered = reminder.status === ReminderStatus.TRIGGERED;
+  // Saved place name first, otherwise the street line only: the geocoded address is far too long
+  // for one card line and the city/country never change from card to card.
+  const location = locationLabelFor(locationLabel, reminder.locationName);
 
   return (
     <PressableArea
@@ -74,7 +78,7 @@ export function ReminderCard({ reminder, onPress, onOverflowPress }: ReminderCar
       </View>
 
       <Text style={Typography.bodySmall} numberOfLines={2}>
-        {reminder.locationName || "No location name"}
+        {location || "No location name"}
       </Text>
 
       {reminder.description ? (

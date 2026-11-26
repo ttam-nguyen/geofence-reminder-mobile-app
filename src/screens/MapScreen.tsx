@@ -30,7 +30,7 @@ import { Icon } from "../components/Icon";
 import { haversineDistance } from "../models/haversine";
 import {
   MAX_PLACE_NAME_LENGTH,
-  findPlaceNear,
+  findSavedPlaceNear,
   listPlaces,
   removePlace,
   renamePlace,
@@ -749,7 +749,7 @@ export function MapScreen() {
                   >
                     <ReminderCard
                       reminder={item}
-                      locationLabel={findPlaceNear(places, item.latitude, item.longitude)?.name}
+                      locationLabel={findSavedPlaceNear(places, item.latitude, item.longitude)?.name}
                       onPress={handleCardPress}
                     />
                   </Animated.View>

@@ -10,7 +10,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "../theme";
 import { PressableArea } from "../components/PressableArea";
 import { store, getStoreVersion, storeReady } from "../stores/reminderStore";
 import { haversineDistance } from "../models/haversine";
-import { findPlaceNear, listPlaces, type SavedPlace } from "../stores/placeStore";
+import { findSavedPlaceNear, listPlaces, type SavedPlace } from "../stores/placeStore";
 import Geolocation from "@react-native-community/geolocation";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -313,7 +313,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
         renderItem={({ item }) => (
           <ReminderCard
             reminder={item}
-            locationLabel={findPlaceNear(places, item.latitude, item.longitude)?.name}
+            locationLabel={findSavedPlaceNear(places, item.latitude, item.longitude)?.name}
             onPress={handleCardPress}
             onOverflowPress={handleOverflow}
           />
@@ -330,7 +330,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
                 <ReminderCard
                   key={reminder.id}
                   reminder={reminder}
-                  locationLabel={findPlaceNear(places, reminder.latitude, reminder.longitude)?.name}
+                  locationLabel={findSavedPlaceNear(places, reminder.latitude, reminder.longitude)?.name}
                   onPress={handleCardPress}
                   onOverflowPress={handleOverflow}
                 />
@@ -347,7 +347,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
                 <ReminderCard
                   key={reminder.id}
                   reminder={reminder}
-                  locationLabel={findPlaceNear(places, reminder.latitude, reminder.longitude)?.name}
+                  locationLabel={findSavedPlaceNear(places, reminder.latitude, reminder.longitude)?.name}
                   onPress={handleCardPress}
                   onOverflowPress={handleOverflow}
                 />
