@@ -15,12 +15,14 @@ import { MapScreen } from "../screens/MapScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { CreateReminderScreen } from "../screens/CreateReminderScreen";
 import { ReminderDetailScreen } from "../screens/ReminderDetailScreen";
+import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { store } from "../stores/reminderStore";
 import { Colors, Spacing, Typography } from "../theme";
 import { enableScreens } from "react-native-screens";
 import { Reminder, ReminderStatus } from "../types/Reminder";
 
 export type RootStackParamList = {
+  Onboarding: undefined;
   Main: undefined;
   CreateReminder: { reminderId?: string; reminder?: Reminder };
   Detail: { reminder: Reminder };
@@ -139,7 +141,13 @@ function MainNavigator({ navigation }: NativeStackScreenProps<RootStackParamList
   );
 }
 
-export function AppNavigator() {
+interface AppNavigatorProps {
+  /** Route shown first: the introduction on a first run, otherwise the tabs. */
+  initialRouteName?: keyof RootStackParamList;
+  onOnboardingDone?: () => void;
+}
+
+export function AppNavigator({ initialRouteName = "Main", onOnboardingDone }: AppNavigatorProps) {
   const navigationRef = useNavigationContainerRef();
 
   // Handle deep links from notification taps.
@@ -184,12 +192,16 @@ export function AppNavigator() {
       Linking.getInitialURL()?.then(handleDeepLink);
     }}>
       <Stack.Navigator
+        initialRouteName={initialRouteName}
         screenOptions={{
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.textPrimary,
           headerTitleStyle: Typography.h3,
         }}
       >
+        <Stack.Screen name="Onboarding" options={{ headerShown: false }}>
+          {() => <OnboardingScreen onDone={onOnboardingDone ?? (() => undefined)} />}
+        </Stack.Screen>
         <Stack.Screen name="Main" component={MainNavigator} options={{ headerShown: false }} />
         <Stack.Screen
           name="CreateReminder"

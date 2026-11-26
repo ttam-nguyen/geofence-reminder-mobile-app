@@ -74,7 +74,7 @@ Rules for filling anything in from this document:
 | App name (Play, 30 chars max) | ✅ `PinPing` | Play: Store listing → App name |
 | App name (App Store, 30 chars max) | ✅ `PinPing` | App Store Connect → Name |
 | Package / bundle id | ✅ `com.gpsreminder` | Already set. Changing it would orphan every existing install's data, so keep it. |
-| Launcher label | 🔧 Currently `GPSReminder` (`android/app/src/main/res/values/strings.xml`, `app.json`). Change to `PinPing`. |
+| Launcher label | ✅ `PinPing` since v1.8.0 (`strings.xml`, `app.json displayName`). The RN component name stays `GPSReminder` because `MainActivity.getMainComponentName()` registers it. |
 | Primary category (Play) | ✅ Maps & Navigation | Play: Store settings |
 | Primary category (App Store) | ✅ Navigation | App Store Connect |
 | Secondary category | ⬜ Tools, or none | optional |
@@ -179,10 +179,10 @@ stay for about two minutes. Saved places, search, and a map that shows your remi
 
 | Field | Value |
 |---|---|
-| Master artwork | ✅ `/Users/tam/Downloads/gps_reminder_react_native_icons/assets/icon.png` (1,024 px) |
-| Play icon | ⬜ export 512 × 512 PNG, no alpha |
-| App Store icon | ✅ generated: `ios/GPSReminder/Images.xcassets/AppIcon.appiconset/` (1,024 px, flattened, no alpha) |
-| Launcher icon | 🔧 installed, but the white edge needs a re-cut (`ic_launcher_foreground.png` must be transparent outside the square) |
+| Master artwork | ✅ `store/icon/pinping-icon-1024.png` (1,024 px, flat 2D mascot, corners flattened to `#11182B`) |
+| Play icon | ✅ `store/icon/pinping-play-icon-512.png` (512 × 512 PNG, no alpha) |
+| App Store icon | ✅ regenerated from the master: `ios/GPSReminder/Images.xcassets/AppIcon.appiconset/` (all sizes, no alpha; iOS build still out of scope, `K-014`) |
+| Launcher icon | ✅ installed from `gps_reminder_flat2d_react_native_icons`; `ic_launcher_foreground.png` is transparent outside the square, so the white edge is gone |
 
 ### Feature graphic — Google Play (required)
 
@@ -494,17 +494,17 @@ Strings to hand to a translator (one per line, no context needed):
 
 Code changes
 
-- [ ] 🔧 Launcher label `GPSReminder` → `PinPing` (`strings.xml`, `app.json`, and the store listing name)
+- [x] ✅ Launcher label `PinPing` (v1.8.0); the store listing name is `PinPing` as well
 - [ ] 🔧 Remove `SCHEDULE_EXACT_ALARM` and `USE_EXACT_ALARM` from `AndroidManifest.xml`
 - [ ] 🔧 Derive `versionName`/`versionCode` from `src/config/version.ts`, increment the code per upload
 - [ ] 🔧 Create a real upload keystore; stop signing release with `signingConfigs.debug`
-- [ ] 🔧 Re-cut `ic_launcher_foreground.png` so the exterior is transparent (white edge currently visible)
+- [x] ✅ Re-cut `ic_launcher_foreground.png` so the exterior is transparent (flat 2D icon set installed)
 - [ ] 🔧 Add a monochrome notification small icon; `ArrivalNotifier` currently uses the coloured app icon, which Android renders as a white blob
 - [ ] ⬜ iOS parity (`K-018`) before any iOS submission; the iOS build cannot be produced on this machine (`K-014`)
 
 Assets
 
-- [ ] ⬜ 512 × 512 Play icon, no alpha
+- [x] ✅ 512 × 512 Play icon, no alpha (`store/icon/pinping-play-icon-512.png`)
 - [ ] ⬜ 1024 × 500 feature graphic
 - [x] ✅ Five phone screenshots captured, `store/screenshots/*-play.png` (1080 × 2160)
 - [ ] ⬜ Headline overlays added to those five frames

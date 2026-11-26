@@ -18,7 +18,9 @@ import { APP_VERSION } from "../config/version";
 import { clearLogs, exportLogs, log } from "../services/logger";
 import { requestBackgroundLocationPermission } from "../services/geofencingService";
 import { openAppSettings } from "../utils/appSettings";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../navigation/AppNavigator";
 
 type SwitchProps = {
   enabled: boolean;
@@ -62,6 +64,7 @@ export function SettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(false);
   const [backgroundLocationGranted, setBackgroundLocationGranted] = useState<boolean | null>(null);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   React.useEffect(() => {
     const unsub = subscribe(() => setSettings(getSettings()));
@@ -361,6 +364,24 @@ export function SettingsScreen() {
         {/* Diagnostics — available in release builds so field problems can be exported. */}
         <SectionDivider />
         <View style={styles.section}>
+          <SectionTitle>Help</SectionTitle>
+          <View style={styles.permissionRow}>
+            <Text style={Typography.body}>How PinPing works</Text>
+            <PressableArea
+              testID="settings.help.onboarding"
+              accessibilityLabel="Show the introduction again"
+              accessibilityRole="button"
+              onPress={() => navigation.navigate("Onboarding")}
+              style={[styles.permissionButton, styles.glassButton]}
+            >
+              <Text style={styles.permissionButtonText}>Show</Text>
+            </PressableArea>
+          </View>
+        </View>
+
+        <SectionDivider />
+
+        <View style={styles.section}>
           <SectionTitle>Diagnostics</SectionTitle>
           <Text style={[Typography.caption, { marginBottom: Spacing.sm }]}>
             Arrival detection keeps a local log of geofence events and status changes.
@@ -392,7 +413,7 @@ export function SettingsScreen() {
         {/* About section */}
         <View style={styles.section}>
           <SectionTitle>About</SectionTitle>
-          <Text style={[Typography.caption, { marginTop: Spacing.xs }]}>GPS Reminder v{APP_VERSION}</Text>
+          <Text style={[Typography.caption, { marginTop: Spacing.xs }]}>PinPing v{APP_VERSION}</Text>
         </View>
       </ScrollView>
     </SafeArea>
