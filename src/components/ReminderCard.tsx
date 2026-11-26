@@ -9,6 +9,8 @@ import { PressableArea } from "./PressableArea";
 
 interface ReminderCardProps {
   reminder: Reminder;
+  /** Place name from the saved-places store, shown instead of the long address. */
+  locationLabel?: string;
   onPress?: (id: string) => void;
   onOverflowPress?: (id: string, action: "edit" | "complete" | "delete") => void;
 }

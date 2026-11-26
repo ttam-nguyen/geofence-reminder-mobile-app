@@ -91,6 +91,18 @@ async function write(places: SavedPlace[]): Promise<void> {
   }
 }
 
+/** The saved or recent place at these coordinates, if there is one nearby. */
+export function findPlaceNear(
+  places: SavedPlace[],
+  latitude: number,
+  longitude: number,
+  toleranceMeters = SAME_PLACE_METERS,
+): SavedPlace | undefined {
+  return places.find(
+    place => haversineMeters(place.latitude, place.longitude, latitude, longitude) <= toleranceMeters,
+  );
+}
+
 /** Saved favourites first, then recents by most recently used. */
 export function sortPlaces(places: SavedPlace[]): SavedPlace[] {
   return [...places].sort((a, b) => {

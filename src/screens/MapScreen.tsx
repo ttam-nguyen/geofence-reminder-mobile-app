@@ -30,6 +30,7 @@ import { Icon } from "../components/Icon";
 import { haversineDistance } from "../models/haversine";
 import {
   MAX_PLACE_NAME_LENGTH,
+  findPlaceNear,
   listPlaces,
   removePlace,
   renamePlace,
@@ -70,8 +71,10 @@ const DEFAULT_REGION = {
 };
 
 /** Sheet height as a fraction of the map area. The sheet is anchored at the bottom. */
-const SHEET_DEFAULT_RATIO = 0.4;
-const SHEET_MIN_RATIO = 0.22;
+const SHEET_DEFAULT_RATIO = 0.55;
+// A card is about 147 dp. Below a 0.4 ratio the list viewport is shorter than one card, so the
+// top of the snap-focused card ended up hidden behind the sheet header.
+const SHEET_MIN_RATIO = 0.4;
 const SHEET_MAX_RATIO = 0.82;
 const SHEET_SIDE_INSET_RATIO = 0.15; // 70% width = 7/10 of the screen
 
@@ -131,6 +134,11 @@ export function MapScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [mapAreaHeight, setMapAreaHeight] = useState(0);
   const [sheetHeightPx, setSheetHeightPx] = useState(0);
+  // Measured, not derived: the sheet header (mode toggle, search, count) sits above the list, so
+  // sheet height minus the drag handle overestimated the viewport by ~110 dp and every fade
+  // calculation was fighting the real scroll range.
+  const [listViewportHeight, setListViewportHeight] = useState(0);
+  const [listContentHeight, setListContentHeight] = useState(0);
 
   const mapRef = useRef<MapView>(null);
   const lastTapRef = useRef<{ id: string; time: number } | null>(null);
@@ -145,9 +153,6 @@ export function MapScreen() {
   const sheetMinHeight = mapAreaHeight * SHEET_MIN_RATIO;
   const sheetMaxHeight = mapAreaHeight * SHEET_MAX_RATIO;
 
-  // Derived, not measured: the list fills the sheet below the grab handle and
-  // its 1 px border. Deriving avoids a setState on every frame of a drag.
-  const listViewportHeight = Math.max(0, sheetHeightPx - DRAG_HANDLE_HEIGHT - 2);
 
   // Keep a plain-number mirror of the animated sheet height. Needed for camera
   // padding and for the first frame of a drag gesture.
@@ -527,19 +532,25 @@ export function MapScreen() {
 
   // Rows are styled by distance from the snap position at the top of the sheet, never by distance
   // to an edge, so no scroll position can render every visible row at zero opacity.
-  /** Height of the scrollable content, derived from the rows that were actually measured. */
-  const listContentHeight = useMemo(() => {
-    const layouts = activeIds
-      .map(id => rowLayouts[id])
-      .filter((layout): layout is RowLayout => Boolean(layout));
-    if (layouts.length === 0) {
-      return 0;
-    }
-    return Math.max(...layouts.map(layout => layout.y + layout.height));
+  const maxScroll = Math.max(0, listContentHeight - listViewportHeight);
+
+  // The focus line is a quarter down the list, but never so far down that a whole card cannot fit
+  // above it: with a short sheet a 147 dp card in a 130 dp viewport lost its title behind the
+  // header at the bottom of the list.
+  const tallestRow = useMemo(() => {
+    const heights = activeIds
+      .map(id => rowLayouts[id]?.height)
+      .filter((height): height is number => typeof height === "number");
+    return heights.length > 0 ? Math.max(...heights) : 0;
   }, [activeIds, rowLayouts]);
 
-  const maxScroll = Math.max(0, listContentHeight - listViewportHeight);
-  const focusLine = listViewportHeight * FOCUS_LINE_RATIO;
+  const focusLine = clamp(
+    listViewportHeight * FOCUS_LINE_RATIO,
+    0,
+    // Keep the whole card inside the viewport: its centre cannot sit closer to the top than half
+    // its own height.
+    Math.max(0, listViewportHeight - tallestRow / 2),
+  );
 
   // Rows fade in and out by their distance from the viewport centre, so scrolling moves a card
   // through focus instead of everything staying dim.
@@ -724,6 +735,8 @@ export function MapScreen() {
             alwaysBounceVertical={false}
             overScrollMode="never"
             onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+            onLayout={event => setListViewportHeight(Math.round(event.nativeEvent.layout.height))}
+            onContentSizeChange={(_width, height) => setListContentHeight(Math.round(height))}
             scrollEventThrottle={16}
             showsVerticalScrollIndicator={activeIds.length > 1}
           >
@@ -734,7 +747,11 @@ export function MapScreen() {
                     onLayout={event => handleRowLayout(item.id, event)}
                     style={[styles.row, rowAnimatedStyle(item.id)]}
                   >
-                    <ReminderCard reminder={item} onPress={handleCardPress} />
+                    <ReminderCard
+                      reminder={item}
+                      locationLabel={findPlaceNear(places, item.latitude, item.longitude)?.name}
+                      onPress={handleCardPress}
+                    />
                   </Animated.View>
                 ))
               : savedPlaces.map(place => (

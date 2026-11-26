@@ -3,6 +3,7 @@
 import {
   MAX_PLACE_NAME_LENGTH,
   clearHistory,
+  findPlaceNear,
   listPlaces,
   listSavedPlaces,
   rememberPlace,
@@ -74,6 +75,27 @@ describe('setPlaceSaved', () => {
 
     expect(places).toHaveLength(1);
     expect(places[0].saved).toBe(false);
+  });
+});
+
+describe('findPlaceNear', () => {
+  it('finds the place at a coordinate, for card nicknames', async () => {
+    const places = await rememberPlace(HOME);
+
+    expect(findPlaceNear(places, HOME.latitude, HOME.longitude)?.name).toBe('Home');
+  });
+
+  it('tolerates a small offset, such as a pin dropped at the door', async () => {
+    const places = await rememberPlace(HOME);
+
+    const near = findPlaceNear(places, HOME.latitude + 0.0001, HOME.longitude + 0.0001);
+    expect(near?.name).toBe('Home');
+  });
+
+  it('returns undefined for a coordinate that is not a saved place', async () => {
+    const places = await rememberPlace(WORK);
+
+    expect(findPlaceNear(places, HOME.latitude, HOME.longitude)).toBeUndefined();
   });
 });
 

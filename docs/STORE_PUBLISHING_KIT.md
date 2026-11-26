@@ -191,45 +191,62 @@ stay for about two minutes. Saved places, search, and a map that shows your remi
 | Size | 1024 × 500 PNG or JPEG |
 | Content | The mascot on the left, the words `PinPing` and one line: `Reminds you when you arrive`. No device frames, no text smaller than 40 px. |
 
-### Screenshots — required sizes
+### Screenshots — what exists, and what the stores need
+
+Captured on the Nothing Phone 3a Pro (`A059P`, 1080 × 2392) and stored in **`store/screenshots/`**.
+Provenance and the capture procedure are recorded in `store/screenshots/README.md`.
+
+| # | File (`-play` is the uploadable crop) | Screen | Shows | Headline overlay (still to add) |
+|---|---|---|---|---|
+| 1 | `store/screenshots/01-home-play.png` | Home | Three active reminders, collapsed `Triggered` group, floating create button, tab icons | Reminds you when you arrive |
+| 2 | `store/screenshots/02-map-play.png` | Map | Full-bleed map with pins, sheet with mode toggle, search field, focused card | See every reminder |
+| 3 | `store/screenshots/03-detail-play.png` | Reminder detail | Title, status badge, address, map, arrival rule, Edit and Delete | One reminder, one place |
+| 4 | `store/screenshots/04-create-play.png` | Edit reminder | Merged location block: map with pin, "Use my location", address search, notification toggles | Pick a place |
+| 5 | `store/screenshots/05-settings-play.png` | Settings | Notification toggles, permission rows, diagnostics export | You control permissions |
+
+Every screen also has a `-raw` file: the full 1080 × 2392 device capture, kept for re-cropping.
+**Do not upload the `-raw` files** — 1:2.21 exceeds the Play limit.
+
+The screenshots use **demo data**, not the user's reminders: the database was backed up, the titles
+and addresses replaced with `…Springfield` values, the coordinates moved to Boise so the map renders
+over a neutral city, then the original database was restored. No real address appears in them.
 
 **Google Play (2 to 8 per type)**
 
-| Type | Requirement | What we have |
+| Type | Requirement | Status |
 |---|---|---|
-| Phone | 16:9 or 9:16, min 320 px, max 3840 px | Device captures are 1080 × 2392 → ratio 1:2.21, **too tall for Play**. Crop to 1080 × 1920 before upload, or capture from a 9:16 device. |
-| 7-inch tablet | optional, 1024 × 600 min | not captured |
-| 10-inch tablet | optional, 1280 × 800 min | not captured |
+| Phone | ratio no taller than 2:1, min 320 px, max 3840 px | ✅ five crops at 1080 × 2160 (1:2.000) |
+| 7-inch tablet | optional, 1024 × 600 min | ⬜ not captured |
+| 10-inch tablet | optional, 1280 × 800 min | ⬜ not captured |
 
 **App Store**
 
-| Display | Required size | Notes |
+| Display | Required size | Status |
 |---|---|---|
-| 6.9-inch | 1320 × 2868 or 1290 × 2796 | required |
-| 6.5-inch | 1284 × 2778 or 1242 × 2688 | required if 6.9 is not provided |
-| 12.9-inch iPad | 2048 × 2732 | only if iPad support is claimed |
+| 6.9-inch | 1320 × 2868 or 1290 × 2796 | ⬜ needs an iOS build first (`K-014`) |
+| 6.5-inch | 1284 × 2778 or 1242 × 2688 | ⬜ same |
+| 12.9-inch iPad | 2048 × 2732 | ⬜ only if iPad support is claimed |
 
-### Screenshot plan (six frames, in this order)
+Still missing before upload:
 
-| # | Screen | State to capture | Headline overlay |
-|---|---|---|---|
-| 1 | Home | Two active reminders, one collapsed `Triggered` group | Reminds you when you arrive |
-| 2 | Create reminder | Title filled, location set to a search result, saved places visible | Pick a place |
-| 3 | Create reminder | Search mode with two saved places | Search or save |
-| 4 | Map | Reminder sheet open with two cards | See every reminder |
-| 5 | Notification shade over the lock screen | An arrival notification from PinPing | Works with the app closed |
-| 6 | Settings | Permission rows, background location allowed | You control permissions |
+1. **Headline overlays** — one short line inside each frame, top area, same font, no caption
+   underneath. The wording is in the last column of the table above.
+2. **Notification frame** — the kit asks for the arrival notification over the lock screen, which
+   needs a real arrival. Capture it on the next field test and add it as frame 6.
+3. **Feature graphic** 1024 × 500 (§ above).
+4. **Play icon** 512 × 512, exported from the 1024 master with no alpha.
 
-Capture on the device, then crop to the store ratio:
+How the `-play` crops were made, so they can be reproduced after any UI change:
 
 ```bash
-adb exec-out screencap -p > shot.png
-sips -c 1920 1080 --cropOffset 236 0 shot.png --out shot-1080x1920.png   # keep the middle band
+adb exec-out screencap -p > store/screenshots/01-home-raw.png
+sips -c 2160 1080 --cropOffset 116 0 \
+  store/screenshots/01-home-raw.png --out store/screenshots/01-home-play.png
 ```
 
-Do not put captions under the images. The headline sits inside the frame, top area, one line.
-
----
+`-c 2160 1080` is height then width; `--cropOffset 116 0` drops the status bar above and leaves the
+system navigation strip out at the bottom, keeping the app header, content and tab bar in frame at
+exactly 2:1.
 
 ## 4. Versioning and build commands
 
@@ -489,7 +506,9 @@ Assets
 
 - [ ] ⬜ 512 × 512 Play icon, no alpha
 - [ ] ⬜ 1024 × 500 feature graphic
-- [ ] ⬜ Six phone screenshots at 1080 × 1920 (cropped from 1080 × 2392)
+- [x] ✅ Five phone screenshots captured, `store/screenshots/*-play.png` (1080 × 2160)
+- [ ] ⬜ Headline overlays added to those five frames
+- [ ] ⬜ Arrival-notification frame captured on a field test
 - [ ] ⬜ App Store 6.9-inch screenshots, only when an iOS build exists
 
 Store console

@@ -1,6 +1,6 @@
 // CreateReminder screen — form to create or edit a reminder.
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -72,11 +72,12 @@ export function CreateReminderScreen(props: Props) {
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   // Location mode state
-  const [locationMode, setLocationMode] = useState<LocationSource>(
+  // How the selected coordinate was chosen; stored on the reminder.
+  const [locationSource, setLocationSource] = useState<LocationSource>(
     initialReminder?.locationSource ?? 'current',
   );
   const [mapRegion, setMapRegion] = useState<Region | null>(null);
-  const [pinCoordinate, setPinCoordinate] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -89,8 +90,25 @@ export function CreateReminderScreen(props: Props) {
       .catch(err => console.error('[CreateReminderScreen] Failed to load places:', err));
   }, []);
 
+  /** Favourites alphabetically, then recent places: what an empty search field offers. */
+  const suggestions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const matched = query
+      ? places.filter(place => place.name.toLowerCase().includes(query))
+      : places;
+
+    const favourites = matched
+      .filter(place => place.saved)
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    const recents = matched.filter(place => !place.saved);
+
+    return [...favourites, ...recents];
+  }, [places, searchQuery]);
+
   const pickPlace = useCallback((place: SavedPlace) => {
-    setLocationMode('search');
+    setLocationSource('search');
+    setSearchQuery(place.name);
+    setSuggestionsVisible(false);
     setLatitude(place.latitude);
     setLongitude(place.longitude);
     setLocationName(place.name);
@@ -116,6 +134,19 @@ export function CreateReminderScreen(props: Props) {
       .then(setPlaces)
       .catch(err => console.error('[CreateReminderScreen] Failed to remove place:', err));
   }, []);
+
+  // Editing: open the map on the reminder's own location, not at 0,0 in the ocean.
+  useEffect(() => {
+    if (mapRegion || !initialReminder) {
+      return;
+    }
+    setMapRegion({
+      latitude: initialReminder.latitude,
+      longitude: initialReminder.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
+  }, [initialReminder, mapRegion]);
 
   // Ref to prevent duplicate geolocation calls between handleCurrentLocation and useEffect.
   const geolocationInProgress = useRef(false);
@@ -154,6 +185,12 @@ export function CreateReminderScreen(props: Props) {
           setLatitude(loc.lat);
           setLongitude(loc.lon);
           setLocationName('Current location');
+          setMapRegion({
+            latitude: loc.lat,
+            longitude: loc.lon,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          });
         }
       }).catch((err) => {
         geolocationInProgress.current = false;
@@ -172,6 +209,7 @@ export function CreateReminderScreen(props: Props) {
       geolocationInProgress.current = false;
       if (!loc) return;
 
+      setLocationSource('current');
       setLatitude(loc.lat);
       setLongitude(loc.lon);
       setLocationName('Current location');
@@ -200,7 +238,7 @@ export function CreateReminderScreen(props: Props) {
   const handleMapPress = useCallback(
     (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
       const coord = e.nativeEvent.coordinate;
-      setPinCoordinate(coord);
+      setLocationSource('pin');
       setLatitude(coord.latitude);
       setLongitude(coord.longitude);
 
@@ -228,6 +266,8 @@ export function CreateReminderScreen(props: Props) {
         setSearchError('No results found for that address.');
         return;
       }
+      setLocationSource('search');
+      setSuggestionsVisible(false);
       setLatitude(result.latitude);
       setLongitude(result.longitude);
       setLocationName(result.displayName);
@@ -305,13 +345,13 @@ export function CreateReminderScreen(props: Props) {
           lastStationaryReadingLat: null,
           lastStationaryReadingLon: null,
           updatedAt: now,
-          locationSource: locationMode,
+          locationSource,
         };
 
         await updateReminder(updated, userPosition);
       } else {
         // Create new reminder.
-        const locationSource: LocationSource = locationMode;
+        const source: LocationSource = locationSource;
         const newReminder: Reminder = {
           id: `reminder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           title: title.trim(),
@@ -328,7 +368,7 @@ export function CreateReminderScreen(props: Props) {
           updatedAt: now,
           triggeredAt: null,
           completedAt: null,
-          locationSource,
+          locationSource: source,
           lastStationaryReadingAt: null,
           lastStationaryReadingLat: null,
           lastStationaryReadingLon: null,
@@ -414,194 +454,135 @@ export function CreateReminderScreen(props: Props) {
                 )}
               </View>
 
-              {/* Mode toggle */}
-              <View style={styles.modeToggle}>
-                <PressableArea
-                  testID="createReminder.location.current.button"
-                  accessibilityLabel="Use current location"
-                  accessibilityRole="button"
-                  style={[
-                    styles.modeButton,
-                    locationMode === 'current' && styles.modeButtonActive,
-                  ]}
-                  onPress={() => {
-                    setLocationMode('current');
-                    setPinCoordinate(null);
-                  }}
+              {/* One location block: the map is the selector, the field searches, the list offers
+                  saved places. The three old modes are gone. */}
+              <View style={styles.inlineMapContainer}>
+                <MapView
+                  provider={Platform.OS === 'android' ? PROVIDER_DEFAULT : undefined}
+                  style={styles.inlineMap}
+                  initialRegion={mapRegion ?? DEFAULT_REGION}
+                  onRegionChangeComplete={(newRegion: Region) => setMapRegion(newRegion)}
+                  onPress={handleMapPress}
                 >
-                  <Text style={styles.modeButtonText}>
-                    Current Location
+                  {latitude !== undefined && longitude !== undefined ? (
+                    <Marker
+                      coordinate={{ latitude, longitude }}
+                      title="Selected"
+                      pinColor={Colors.signalRed}
+                    />
+                  ) : null}
+                </MapView>
+                <PressableArea
+                  testID="createReminder.location.getCurrent.button"
+                  accessibilityLabel="Use my current location"
+                  accessibilityRole="button"
+                  disabled={isGettingLocation}
+                  onPress={handleCurrentLocation}
+                  style={styles.mapOverlayButton}
+                >
+                  <Icon name="pin" size={14} color={Colors.textPrimary} />
+                  <Text style={styles.mapOverlayButtonText}>
+                    {isGettingLocation ? 'Locating…' : 'Use my location'}
                   </Text>
-                </PressableArea>
-                <PressableArea
-                  testID="createReminder.location.pin.button"
-                  accessibilityLabel="Drop pin on map"
-                  accessibilityRole="button"
-                  style={[
-                    styles.modeButton,
-                    locationMode === 'pin' && styles.modeButtonActive,
-                  ]}
-                  onPress={() => {
-                    setLocationMode('pin');
-                    setPinCoordinate(null);
-                    // Open the preview where the user actually is, not at 0,0.
-                    if (mapRegion) {
-                      return;
-                    }
-                    if (latitude !== undefined && longitude !== undefined) {
-                      setMapRegion({
-                        latitude,
-                        longitude,
-                        latitudeDelta: 0.01,
-                        longitudeDelta: 0.01,
-                      });
-                      return;
-                    }
-                    getCurrentLocation().then(loc => {
-                      if (loc) {
-                        setMapRegion({
-                          latitude: loc.lat,
-                          longitude: loc.lon,
-                          latitudeDelta: 0.01,
-                          longitudeDelta: 0.01,
-                        });
-                      }
-                    });
-                  }}
-                >
-                  <Text style={styles.modeButtonText}>Drop Pin</Text>
-                </PressableArea>
-                <PressableArea
-                  testID="createReminder.location.search.button"
-                  accessibilityLabel="Search address"
-                  accessibilityRole="button"
-                  style={[
-                    styles.modeButton,
-                    locationMode === 'search' && styles.modeButtonActive,
-                  ]}
-                  onPress={() => {
-                    setLocationMode('search');
-                    setPinCoordinate(null);
-                  }}
-                >
-                  <Text style={styles.modeButtonText}>Search</Text>
                 </PressableArea>
               </View>
 
-              {/* Inline map for pin mode */}
-              {locationMode === 'pin' && (
-                <View style={styles.inlineMapContainer}>
-                  <MapView
-                    provider={Platform.OS === 'android' ? PROVIDER_DEFAULT : undefined}
-                    style={styles.inlineMap}
-                    initialRegion={mapRegion ?? DEFAULT_REGION}
-                    onRegionChangeComplete={(newRegion: Region) => setMapRegion(newRegion)}
-                    onPress={handleMapPress}
-                  >
-                    {pinCoordinate && (
-                      <Marker
-                        coordinate={pinCoordinate}
-                        title="Selected"
-                        pinColor={Colors.signalRed}
-                      />
-                    )}
-                  </MapView>
-                </View>
-              )}
-
-              {/* Current location button (non-pin mode) */}
-              {locationMode === 'current' && (
-                <PressableArea
-                  testID="createReminder.location.getCurrent.button"
-                  accessibilityLabel="Get current location"
-                  style={[styles.getLocationButton, isGettingLocation && styles.getLocationButtonDisabled]}
-                  onPress={handleCurrentLocation}
-                  disabled={isGettingLocation}
-                >
-                  <Text style={styles.getLocationButtonText}>
-                    {isGettingLocation ? 'Getting location...' : 'Get Current Location'}
-                  </Text>
-                </PressableArea>
-              )}
-
-              {/* Address search mode */}
-              {locationMode === 'search' && (
-                <View style={styles.searchContainer}>
-                  <TextInput
-                    testID="createReminder.location.search.input"
-                    accessibilityLabel="Search address"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    style={styles.input}
-                    placeholder="e.g. 123 Main St, Springfield"
-                    placeholderTextColor={Colors.textMuted}
-                  />
+              <View style={styles.searchField}>
+                <Icon name="search" size={16} color={Colors.textMuted} />
+                <TextInput
+                  testID="createReminder.location.search.input"
+                  accessibilityLabel="Search for an address"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onFocus={() => setSuggestionsVisible(true)}
+                  onSubmitEditing={handleSearch}
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                  placeholder="Search for an address"
+                  placeholderTextColor={Colors.textMuted}
+                />
+                {searchQuery.length > 0 ? (
                   <PressableArea
-                    testID="createReminder.location.search.submit"
-                    accessibilityLabel="Search address"
+                    testID="createReminder.location.search.clear"
+                    accessibilityLabel="Clear address search"
                     accessibilityRole="button"
-                    style={[styles.getLocationButton, isSearching && styles.getLocationButtonDisabled]}
-                    onPress={handleSearch}
-                    disabled={isSearching}
+                    onPress={() => {
+                      setSearchQuery('');
+                      setSearchError(null);
+                    }}
+                    style={styles.searchClear}
                   >
-                    <Text style={styles.getLocationButtonText}>
-                      {isSearching ? 'Searching...' : 'Search Address'}
-                    </Text>
+                    <Icon name="close" size={14} color={Colors.textMuted} />
                   </PressableArea>
-                  {searchError ? (
-                    <Text style={styles.errorText}>{searchError}</Text>
-                  ) : null}
+                ) : null}
+                <PressableArea
+                  testID="createReminder.location.search.submit"
+                  accessibilityLabel="Search address"
+                  accessibilityRole="button"
+                  disabled={isSearching}
+                  onPress={handleSearch}
+                  style={styles.searchSubmit}
+                >
+                  <Text style={styles.searchSubmitText}>{isSearching ? '…' : 'Go'}</Text>
+                </PressableArea>
+              </View>
 
-                  {places.length > 0 ? (
-                    <View style={styles.placesList}>
-                      <Text style={[Typography.caption, styles.placesHeading]}>
-                        Saved and recent places
-                      </Text>
-                      {places.map(place => (
-                        <View key={place.id} style={styles.placeRow}>
-                          <PressableArea
-                            testID={`createReminder.place.${place.id}`}
-                            accessibilityLabel={`Use ${place.name}`}
-                            accessibilityRole="button"
-                            onPress={() => pickPlace(place)}
-                            style={styles.placeMain}
-                          >
-                            <Icon name="pin" size={16} color={Colors.textMuted} />
-                            <Text style={styles.placeName} numberOfLines={1}>
-                              {place.name}
-                            </Text>
-                          </PressableArea>
-                          <PressableArea
-                            testID={`createReminder.place.${place.id}.star`}
-                            accessibilityLabel={
-                              place.saved ? `Remove ${place.name} from saved` : `Save ${place.name}`
-                            }
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: place.saved }}
-                            onPress={() => togglePlaceSaved(place)}
-                            style={styles.placeAction}
-                          >
-                            <Icon
-                              name="star"
-                              size={16}
-                              color={place.saved ? Colors.waitingAmber : Colors.textMuted}
-                            />
-                          </PressableArea>
-                          <PressableArea
-                            testID={`createReminder.place.${place.id}.remove`}
-                            accessibilityLabel={`Remove ${place.name} from history`}
-                            accessibilityRole="button"
-                            onPress={() => forgetPlace(place)}
-                            style={styles.placeAction}
-                          >
-                            <Icon name="trash" size={16} color={Colors.textMuted} />
-                          </PressableArea>
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
+              {searchError ? <Text style={styles.errorText}>{searchError}</Text> : null}
+
+              {suggestionsVisible || searchQuery.length > 0 ? (
+                <View style={styles.placesList}>
+                  <Text style={[Typography.caption, styles.placesHeading]}>
+                    {searchQuery.trim() ? 'Matching places' : 'Saved places'}
+                  </Text>
+                  {suggestions.length === 0 ? (
+                    <Text style={[Typography.caption, styles.placesHeading]}>
+                      No saved places yet. Star a search result to keep it here.
+                    </Text>
+                  ) : (
+                    suggestions.map(place => (
+                      <View key={place.id} style={styles.placeRow}>
+                        <PressableArea
+                          testID={`createReminder.place.${place.id}`}
+                          accessibilityLabel={`Use ${place.name}`}
+                          accessibilityRole="button"
+                          onPress={() => pickPlace(place)}
+                          style={styles.placeMain}
+                        >
+                          <Icon name="pin" size={16} color={Colors.textMuted} />
+                          <Text style={styles.placeName} numberOfLines={1}>
+                            {place.name}
+                          </Text>
+                        </PressableArea>
+                        <PressableArea
+                          testID={`createReminder.place.${place.id}.star`}
+                          accessibilityLabel={
+                            place.saved ? `Remove ${place.name} from saved` : `Save ${place.name}`
+                          }
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: place.saved }}
+                          onPress={() => togglePlaceSaved(place)}
+                          style={styles.placeAction}
+                        >
+                          <Icon
+                            name="star"
+                            size={16}
+                            color={place.saved ? Colors.waitingAmber : Colors.textMuted}
+                          />
+                        </PressableArea>
+                        <PressableArea
+                          testID={`createReminder.place.${place.id}.remove`}
+                          accessibilityLabel={`Remove ${place.name}`}
+                          accessibilityRole="button"
+                          onPress={() => forgetPlace(place)}
+                          style={styles.placeAction}
+                        >
+                          <Icon name="trash" size={16} color={Colors.textMuted} />
+                        </PressableArea>
+                      </View>
+                    ))
+                  )}
                 </View>
-              )}
+              ) : null}
             </View>
 
             <View style={styles.section}>
@@ -664,6 +645,60 @@ export function CreateReminderScreen(props: Props) {
 }
 
 const styles = StyleSheet.create({
+  mapOverlayButton: {
+    position: 'absolute',
+    left: Spacing.sm,
+    bottom: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    minHeight: 36,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.pill,
+    backgroundColor: Colors.surfaceGlassStrong,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+  },
+  mapOverlayButtonText: {
+    ...Typography.caption,
+    color: Colors.textPrimary,
+  },
+  searchField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    minHeight: 48,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+  },
+  searchInput: {
+    flex: 1,
+    ...Typography.body,
+    color: Colors.textPrimary,
+    paddingVertical: Spacing.xs,
+  },
+  searchClear: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchSubmit: {
+    minWidth: 44,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.signalRedSoft,
+  },
+  searchSubmitText: {
+    ...Typography.caption,
+    color: Colors.signalRed,
+    fontWeight: '600',
+  },
   placesList: {
     marginTop: Spacing.sm,
     borderRadius: BorderRadius.md,
@@ -744,43 +779,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     padding: Spacing.sm,
     marginBottom: Spacing.sm,
-  },
-  modeToggle: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  modeButton: {
-    flex: 1,
-    backgroundColor: Colors.surfaceGlassStrong,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderGlass,
-    alignItems: 'center',
-  },
-  modeButtonActive: {
-    borderColor: Colors.signalRed,
-    backgroundColor: Colors.signalRedSoft,
-  },
-  modeButtonText: {
-    ...Typography.bodySmall,
-    color: Colors.signalRed,
-  },
-  getLocationButton: {
-    backgroundColor: Colors.surfaceGlassStrong,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderGlass,
-    alignItems: 'center',
-  },
-  getLocationButtonDisabled: {
-    opacity: 0.6,
-  },
-  getLocationButtonText: {
-    ...Typography.bodySmall,
-    color: Colors.signalRed,
   },
   searchContainer: {
     gap: Spacing.sm,

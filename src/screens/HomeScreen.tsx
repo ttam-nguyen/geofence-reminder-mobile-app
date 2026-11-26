@@ -10,6 +10,7 @@ import { Colors, Spacing, Typography, BorderRadius } from "../theme";
 import { PressableArea } from "../components/PressableArea";
 import { store, getStoreVersion, storeReady } from "../stores/reminderStore";
 import { haversineDistance } from "../models/haversine";
+import { findPlaceNear, listPlaces, type SavedPlace } from "../stores/placeStore";
 import Geolocation from "@react-native-community/geolocation";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -117,6 +118,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ReminderStatus | null>(null);
   const [userLocation, setUserLocation] = useState<SortContext | null>(null);
+  const [places, setPlaces] = useState<SavedPlace[]>([]);
   // Finished work is grouped and closed by default, so the list shows what needs attention.
   const [showTriggered, setShowTriggered] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -134,6 +136,17 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
         }
       }
       loadReminders();
+
+      // Nicknames for saved places, so a card can show "Home" instead of a full address.
+      listPlaces()
+        .then(items => {
+          if (!cancelled) {
+            setPlaces(items);
+          }
+        })
+        .catch(() => {
+          // A failure here only costs the nickname.
+        });
 
       // Distance ordering needs a position; a failure just falls back to title order.
       Geolocation.getCurrentPosition(
@@ -298,7 +311,12 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <ReminderCard reminder={item} onPress={handleCardPress} onOverflowPress={handleOverflow} />
+          <ReminderCard
+            reminder={item}
+            locationLabel={findPlaceNear(places, item.latitude, item.longitude)?.name}
+            onPress={handleCardPress}
+            onOverflowPress={handleOverflow}
+          />
         )}
         ListFooterComponent={
           <View>
@@ -312,6 +330,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
                 <ReminderCard
                   key={reminder.id}
                   reminder={reminder}
+                  locationLabel={findPlaceNear(places, reminder.latitude, reminder.longitude)?.name}
                   onPress={handleCardPress}
                   onOverflowPress={handleOverflow}
                 />
@@ -328,6 +347,7 @@ export function HomeScreen({ onNavigateToCreate, onNavigateToDetail }: HomeScree
                 <ReminderCard
                   key={reminder.id}
                   reminder={reminder}
+                  locationLabel={findPlaceNear(places, reminder.latitude, reminder.longitude)?.name}
                   onPress={handleCardPress}
                   onOverflowPress={handleOverflow}
                 />
